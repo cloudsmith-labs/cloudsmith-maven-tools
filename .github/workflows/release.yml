@@ -68,7 +68,7 @@ jobs:
           gh release upload "$TAG" \
             "maven-extension/target/cloudsmith-maven-extension-${TAG#v}.jar" \
             "gradle-plugin/build/libs/cloudsmith-gradle-plugin-${TAG#v}.jar" \
-            "sbt-plugin/target/scala-2.12/sbt-1.0/sbt-cloudsmith_2.12_1.0-${TAG#v}.jar" \
+            "sbt-plugin/target/scala-2.12/sbt-1.0/sbt-cloudsmith-${TAG#v}.jar" \
             "sbt-plugin/target/scala-3.8.4/sbt-2/sbt-cloudsmith_sbt2_3-${TAG#v}.jar"
 
   cloudsmith:

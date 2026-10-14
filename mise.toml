@@ -47,7 +47,7 @@ tools="$(mktemp -d)"
 trap 'rm -rf "${tools}" sbt-plugin/project/cloudsmith-release.sbt' EXIT
 cp "maven-extension/target/cloudsmith-maven-extension-${version}.jar" "${tools}/extension.jar"
 cp "gradle-plugin/build/libs/cloudsmith-gradle-plugin-${version}.jar" "${tools}/gradle-plugin.jar"
-cp "sbt-plugin/target/scala-2.12/sbt-1.0/sbt-cloudsmith_2.12_1.0-${version}.jar" "${tools}/sbt-plugin.jar"
+cp "sbt-plugin/target/scala-2.12/sbt-1.0/sbt-cloudsmith-${version}.jar" "${tools}/sbt-plugin.jar"
 printf 'Compile / unmanagedJars += Attributed.blank(file("%s"))\\n' "${tools}/sbt-plugin.jar" \\
   > sbt-plugin/project/cloudsmith-release.sbt
 
