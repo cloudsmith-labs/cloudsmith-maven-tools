@@ -1,0 +1,61 @@
+name: Security
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "**"
+  # Catches new zizmor audits and newly-disclosed action vulnerabilities
+  # without needing a push.
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions: {}
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zizmor:
+    name: Audit GitHub Actions workflows
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read # read the workflow files being audited
+      actions: read # resolve the workflows and actions this repo references
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          # Print the findings and fail the job on them. A SARIF upload needs code
+          # scanning, which a private repository does not have without Advanced Security.
+          advanced-security: false
+
+  gitleaks:
+    name: Scan for committed secrets
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read # read the working tree and history being scanned
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # gitleaks scans history, so it needs all of it, not just the tip.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up the toolchain with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+
+      # The gitleaks hook scans staged changes only, which are empty in CI.
+      - name: Scan the working tree and the commit history
+        run: mise run secrets

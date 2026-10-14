@@ -1,0 +1,161 @@
+name: Release
+
+# release-please keeps a release PR open with the next version and changelog. Merging that PR
+# creates the tag and the GitHub release, and then the jobs below publish the jars. See RELEASING.md.
+on:
+  push:
+    branches:
+      - main
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Update the release PR, or create the release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # create the tag and the release
+      pull-requests: write # open and update the release PR
+    outputs:
+      created: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          # CI does not run on a PR that the default token opens. The Cloudsmith Bot token fixes that.
+          token: ${{ secrets.CLOUDSMITH_BOT_PR_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  github:
+    name: Attach the jars to the GitHub release
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # upload the release assets
+    env:
+      TAG: ${{ needs.release-please.outputs.tag }}
+
+    steps:
+      - name: Check out the release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+          persist-credentials: false
+
+      - name: Set up the toolchain with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          # A poisoned cache entry restored here would end up in a release artifact.
+          cache: false
+
+      - name: Build the jars
+        run: mise run build
+
+      - name: Upload the jars
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release upload "$TAG" \
+            "maven-extension/target/cloudsmith-maven-extension-${TAG#v}.jar" \
+            "gradle-plugin/build/libs/cloudsmith-gradle-plugin-${TAG#v}.jar" \
+            "sbt-plugin/target/scala-2.12/sbt-1.0/sbt-cloudsmith_2.12_1.0-${TAG#v}.jar" \
+            "sbt-plugin/target/scala-3.8.4/sbt-2/sbt-cloudsmith_sbt2_3-${TAG#v}.jar"
+
+  cloudsmith:
+    name: Publish to Cloudsmith
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true' && vars.RELEASE_CLOUDSMITH_REPO != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # exchanged for a Cloudsmith token through OIDC
+    env:
+      CLOUDSMITH_ORG: ${{ vars.RELEASE_CLOUDSMITH_ORG }}
+      CLOUDSMITH_REPO: ${{ vars.RELEASE_CLOUDSMITH_REPO }}
+      CLOUDSMITH_SERVICE_SLUG: ${{ vars.RELEASE_CLOUDSMITH_SERVICE_SLUG }}
+
+    steps:
+      - name: Check out the release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+          persist-credentials: false
+
+      - name: Set up the toolchain with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          cache: false
+
+      # Each tool authenticates the upload of its own release.
+      - name: Publish the extension and the plugins
+        run: mise run publish:cloudsmith
+
+  maven-central:
+    name: Publish the Maven extension and the sbt plugin to Maven Central
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true' && vars.PUBLISH_TO_MAVEN_CENTRAL == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out the release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+          persist-credentials: false
+
+      - name: Set up the toolchain with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          cache: false
+
+      # sbt-pgp signs with the key in the gpg keyring.
+      - name: Import the signing key
+        env:
+          MAVEN_GPG_KEY: ${{ secrets.MAVEN_GPG_KEY }}
+        run: printf '%s' "$MAVEN_GPG_KEY" | gpg --batch --import
+
+      - name: Sign and publish the extension and the sbt plugin
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_GPG_KEY: ${{ secrets.MAVEN_GPG_KEY }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: mise run publish:maven-central
+
+  gradle-plugin-portal:
+    name: Publish the Gradle plugin to the Gradle Plugin Portal
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true' && vars.PUBLISH_TO_GRADLE_PLUGIN_PORTAL == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out the release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+          persist-credentials: false
+
+      - name: Set up the toolchain with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          cache: false
+
+      - name: Publish the plugin
+        env:
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+        run: mise run publish:gradle-plugin-portal

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.cloudsmith.examples</groupId>
+  <artifactId>example-maven</artifactId>
+  <version>0.1.0</version>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
+    <!-- For a custom domain, use https://<host>/<repository>/ -->
+    <cloudsmith.deploy.url>https://maven.cloudsmith.io/${env.CLOUDSMITH_ORG}/${env.CLOUDSMITH_REPO}/</cloudsmith.deploy.url>
+  </properties>
+
+  <!-- No <server> entry in settings.xml: the extension supplies the credential. -->
+  <distributionManagement>
+    <repository>
+      <id>cloudsmith</id>
+      <url>${cloudsmith.deploy.url}</url>
+    </repository>
+  </distributionManagement>
+</project>

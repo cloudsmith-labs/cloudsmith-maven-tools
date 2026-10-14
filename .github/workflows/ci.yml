@@ -1,0 +1,207 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-maven:
+    name: Test the Maven extension (Maven ${{ matrix.maven }}${{ matrix.it-java && format(', {0}', matrix.it-java) || '' }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - maven: "3.9.16"
+          - maven: "3.9.16"
+            it-java: temurin-17
+          - maven: "3.10.0"
+          - maven: "3.10.0"
+            it-java: temurin-17
+          - maven: "4.0.0-rc-7"
+
+    # The integration test runs the Maven that runs `mvn verify`, so this
+    # version is the Maven under test. `it-java` is the JDK that Maven runs on
+    # in the integration test; without it, that Maven uses the build JDK.
+    env:
+      MAVEN_VERSION: ${{ matrix.maven }}
+      IT_JAVA: ${{ matrix.it-java }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+
+      # Asserts rather than prints: a mismatch means that the leg does not
+      # test what its name says.
+      - name: Confirm mise resolved the requested Maven
+        run: |
+          resolved="$(mise exec "aqua:apache/maven@${MAVEN_VERSION}" -- mvn -v | head -n 1)"
+          echo "$resolved"
+          case "$resolved" in
+            "Apache Maven ${MAVEN_VERSION} "*) ;;
+            *) echo "::error::expected Maven ${MAVEN_VERSION}"; exit 1 ;;
+          esac
+
+      - name: Install and confirm the JDK for the Maven under test
+        if: matrix.it-java != ''
+        run: |
+          mise install "java@${IT_JAVA}"
+          resolved="$("$(mise where "java@${IT_JAVA}")/bin/java" -version 2>&1 | head -n 1)"
+          echo "$resolved"
+          case "$resolved" in
+            *'"17.'*) ;;
+            *) echo "::error::expected Java 17 from ${IT_JAVA}"; exit 1 ;;
+          esac
+
+      - name: Run the unit tests and the integration tests
+        run: |
+          arguments=()
+          if [ -n "$IT_JAVA" ]; then
+            arguments+=("-Dit.java.home=$(mise where "java@${IT_JAVA}")")
+          fi
+          mise exec "aqua:apache/maven@${MAVEN_VERSION}" -- mvn -B -f maven-extension/pom.xml verify "${arguments[@]}"
+
+  test-gradle:
+    name: Test the Gradle plugin (Gradle ${{ matrix.gradle }}${{ matrix.it-java && format(', {0}', matrix.it-java) || '' }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - gradle: "9.8.1"
+          - gradle: "8.14.6"
+            it-java: temurin-21
+          - gradle: "7.6.6"
+            it-java: temurin-17
+
+    # The integration tests run builds with the Gradle under test on `it-java`.
+    # The plugin itself is always built with the Gradle and Java in mise.toml.
+    env:
+      GRADLE_VERSION: ${{ matrix.gradle }}
+      IT_JAVA: ${{ matrix.it-java }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+
+      # Asserts rather than prints: a mismatch means that the leg does not
+      # test what its name says.
+      - name: Run the unit tests and the integration tests
+        run: |
+          mise install "gradle@${GRADLE_VERSION}"
+          gradle_home="$(dirname "$(dirname "$(mise which gradle --tool "gradle@${GRADLE_VERSION}")")")"
+          resolved="$("${gradle_home}/bin/gradle" --version | grep '^Gradle ')"
+          echo "$resolved"
+          if [ "$resolved" != "Gradle ${GRADLE_VERSION}" ]; then
+            echo "::error::expected Gradle ${GRADLE_VERSION}"
+            exit 1
+          fi
+
+          arguments=("-Pit.gradle.home=${gradle_home}")
+          if [ -n "$IT_JAVA" ]; then
+            mise install "java@${IT_JAVA}"
+            arguments+=("-Pit.java.home=$(mise where "java@${IT_JAVA}")")
+          fi
+          mise exec -- gradle -p gradle-plugin build "${arguments[@]}"
+
+  test-sbt:
+    name: Test the sbt plugin (sbt ${{ matrix.sbt }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sbt: "1.10.11"
+            scala: "2.12.x"
+          - sbt: "1.13.0"
+            scala: "2.12.x"
+          - sbt: "2.0.10"
+            scala: "3.x"
+
+    # The integration tests run builds with the sbt under test, which the sbt launcher downloads.
+    # sbt 1 loads the Scala 2.12 build of the plugin, and sbt 2 the Scala 3 build.
+    env:
+      SBT_VERSION: ${{ matrix.sbt }}
+      SCALA_VERSION: ${{ matrix.scala }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+
+      - name: Run the integration tests
+        working-directory: sbt-plugin
+        run: mise exec -- sbt -batch -Dit.sbt.version="${SBT_VERSION}" "++${SCALA_VERSION}" test
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+
+      - name: Run the hooks
+        run: mise exec -- prek run --all-files --show-diff-on-failure
+
+  build:
+    name: Build the jars
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          # A poisoned cache entry restored here would end up in a release artifact.
+          cache: false
+
+      - name: Build the jars
+        run: mise run build
+
+      # Without the Sisu index, Maven loads the jar but never finds the
+      # factory, and every build silently runs without credentials.
+      - name: Check that the Maven jar registers the factory with Maven
+        run: |
+          unzip -p maven-extension/target/cloudsmith-maven-extension-*.jar META-INF/sisu/javax.inject.Named \
+            | grep -x 'io.cloudsmith.maven.CloudsmithTransporterFactory'
+
+      - name: Check that the Gradle jar declares the plugin ID
+        run: |
+          unzip -p gradle-plugin/build/libs/cloudsmith-gradle-plugin-*.jar \
+            META-INF/gradle-plugins/io.cloudsmith.gradle-plugin.properties \
+            | grep -x 'implementation-class=io.cloudsmith.gradle.CloudsmithPlugin'

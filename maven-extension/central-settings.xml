@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The Maven Central user token, for `mise run publish:maven-central`. See RELEASING.md. -->
+<settings>
+  <servers>
+    <server>
+      <id>central</id>
+      <username>${env.MAVEN_CENTRAL_USERNAME}</username>
+      <password>${env.MAVEN_CENTRAL_PASSWORD}</password>
+    </server>
+  </servers>
+</settings>

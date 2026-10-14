@@ -1,0 +1,58 @@
+name: Examples
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: examples-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  examples:
+    name: Publish and resolve (${{ matrix.name }})
+    # EXAMPLE_TARGETS lists the Cloudsmith repositories to run against. See CONTRIBUTING.md.
+    if: vars.EXAMPLE_TARGETS != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # exchanged for a Cloudsmith token through OIDC
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(vars.EXAMPLE_TARGETS || '[{}]') }}
+    env:
+      # The CLI also reads CLOUDSMITH_ORG as the workspace whose custom domains it lists.
+      CLOUDSMITH_ORG: ${{ matrix.workspace }}
+      CLOUDSMITH_REPO: ${{ matrix.repository }}
+      CLOUDSMITH_SERVICE_SLUG: ${{ matrix.service }}
+      # Empty for the cloudsmith.io hosts, so each example builds its default URL.
+      CLOUDSMITH_DEPLOY_URL: ${{ matrix.deploy_url }}
+      CLOUDSMITH_RESOLVE_URL: ${{ matrix.resolve_url }}
+      EXAMPLE_RESOLVE_LATEST: ${{ matrix.resolve_latest }}
+      EXAMPLE_VERSION: 0.1.${{ github.run_id }}.${{ github.run_attempt }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain with mise
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+
+      - name: Publish and resolve with Maven
+        run: mise run example:maven
+
+      - name: Publish and resolve with Gradle
+        run: mise run example:gradle
+
+      - name: Publish and resolve with sbt
+        run: mise run example:sbt

@@ -1,0 +1,236 @@
+{
+    "version": 1,
+    "domains": [
+        {
+            "host": "cargo.cloudsmith.io",
+            "format": "cargo",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "composer.cloudsmith.io",
+            "format": "composer",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "conan.cloudsmith.io",
+            "format": "conan",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "conda.cloudsmith.io",
+            "format": "conda",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "dart.cloudsmith.io",
+            "format": "dart",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "dl.cloudsmith.io",
+            "format": null,
+            "type": "default",
+            "domain_type": "download",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "docker.cloudsmith.io",
+            "format": "docker",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "generic.cloudsmith.io",
+            "format": "generic",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "golang.cloudsmith.io",
+            "format": "go",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "helm.oci.cloudsmith.io",
+            "format": "helm",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "hex.cloudsmith.io",
+            "format": "hex",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "huggingface.cloudsmith.io",
+            "format": "huggingface",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "maven.cloudsmith.io",
+            "format": "maven",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "nix.cloudsmith.io",
+            "format": "nix",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "npm.cloudsmith.io",
+            "format": "npm",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "nuget.cloudsmith.io",
+            "format": "nuget",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "python.cloudsmith.io",
+            "format": "python",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "ruby.cloudsmith.io",
+            "format": "ruby",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "swift.cloudsmith.io",
+            "format": "swift",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "terraform.cloudsmith.io",
+            "format": "terraform",
+            "type": "default",
+            "domain_type": "native_api",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        },
+        {
+            "host": "upload.cloudsmith.io",
+            "format": null,
+            "type": "default",
+            "domain_type": "upload",
+            "workspace": null,
+            "org": null,
+            "repository": null,
+            "primary": true,
+            "created_at": null
+        }
+    ]
+}

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Maven finds this file from both library/ and app/. -->
+<extensions>
+  <extension>
+    <groupId>io.cloudsmith</groupId>
+    <artifactId>cloudsmith-maven-extension</artifactId>
+    <version>0.1.0</version><!-- x-release-please-version -->
+  </extension>
+</extensions>

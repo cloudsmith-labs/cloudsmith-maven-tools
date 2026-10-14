@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.cloudsmith.examples</groupId>
+  <artifactId>example-app</artifactId>
+  <version>0.1.0</version>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
+    <example.version>[0,)</example.version>
+    <!-- For a custom domain, use https://<host>/basic/<repository>/maven/ -->
+    <cloudsmith.resolve.url>https://dl.cloudsmith.io/basic/${env.CLOUDSMITH_ORG}/${env.CLOUDSMITH_REPO}/maven/</cloudsmith.resolve.url>
+  </properties>
+
+  <!-- No <server> entry in settings.xml: the extension supplies the credential.
+       The id central replaces Maven Central, so every dependency and plugin comes from
+       Cloudsmith, which proxies Maven Central as an upstream. -->
+  <repositories>
+    <repository>
+      <id>central</id>
+      <url>${cloudsmith.resolve.url}</url>
+    </repository>
+  </repositories>
+  <pluginRepositories>
+    <pluginRepository>
+      <id>central</id>
+      <url>${cloudsmith.resolve.url}</url>
+    </pluginRepository>
+  </pluginRepositories>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.cloudsmith.examples</groupId>
+      <artifactId>example-maven</artifactId>
+      <version>${example.version}</version>
+    </dependency>
+  </dependencies>
+</project>

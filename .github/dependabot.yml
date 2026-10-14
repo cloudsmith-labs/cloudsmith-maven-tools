@@ -1,0 +1,75 @@
+version: 2
+updates:
+  - package-ecosystem: "maven"
+    cooldown:
+      default-days: 7
+    directory: "/maven-extension"
+    schedule:
+      interval: "weekly"
+    # The provided dependencies match the versions that Maven 3.9 bundles. Compiling against a
+    # newer major version could use API that Maven 3.9 does not have.
+    ignore:
+      - dependency-name: "org.apache.maven.resolver:*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "org.slf4j:slf4j-api"
+        update-types: ["version-update:semver-major"]
+    groups:
+      maven-all:
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
+      maven-major:
+        patterns: ["*"]
+        update-types:
+          - "major"
+      maven-security:
+        applies-to: security-updates
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: "gradle"
+    cooldown:
+      default-days: 7
+    directory: "/gradle-plugin"
+    schedule:
+      interval: "weekly"
+    groups:
+      gradle-all:
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
+      gradle-major:
+        patterns: ["*"]
+        update-types:
+          - "major"
+      gradle-security:
+        applies-to: security-updates
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: "github-actions"
+    cooldown:
+      default-days: 7
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions-all:
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"
+      actions-major:
+        patterns: ["*"]
+        update-types:
+          - "major"
+      actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
+        update-types:
+          - "minor"
+          - "patch"

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "initial-version": "0.1.0",
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "packages": {
+    ".": {
+      "extra-files": [
+        "maven-extension/pom.xml",
+        "gradle-plugin/build.gradle.kts",
+        "sbt-plugin/build.sbt",
+        "examples/.mvn/extensions.xml",
+        "README.md"
+      ]
+    }
+  }
+}

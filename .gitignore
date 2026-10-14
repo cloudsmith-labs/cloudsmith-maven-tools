@@ -1,0 +1,16 @@
+# Negated: mise.toml is committed, but is a common global gitignore entry.
+!mise.toml
+mise.local.toml
+.mise/
+
+target/
+build/
+.gradle/
+.bsp/
+# Written and removed by `mise run publish:cloudsmith`.
+sbt-plugin/project/cloudsmith-release.sbt
+.kotlin/
+.idea/
+*.iml
+.vscode/
+.DS_Store

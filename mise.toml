@@ -1,0 +1,91 @@
+[tools]
+java = "temurin-25"
+"aqua:apache/maven" = "3.10.0"
+gradle = "9.8.1"
+"github:sbt/sbt" = "1.13.0"
+google-java-format = "1.37.0"
+gitleaks = "8.30.1"
+prek = "0.5.5"
+"aqua:cloudsmith-io/cloudsmith-cli" = "1.28.0"
+
+[tasks.test]
+description = "Run the unit tests, and the Gradle and sbt integration tests"
+run = ["mvn -B -f maven-extension/pom.xml test", "gradle -p gradle-plugin test", "cd sbt-plugin && sbt -batch +test"]
+
+[tasks.verify]
+description = "Run every test, including the Maven integration tests against a real Maven"
+run = ["mvn -B -f maven-extension/pom.xml verify", "gradle -p gradle-plugin build", "cd sbt-plugin && sbt -batch +test"]
+
+[tasks.build]
+description = "Build the jars of the Maven extension, the Gradle plugin and the sbt plugin"
+run = ["mvn -B -q -f maven-extension/pom.xml package -DskipTests", "gradle -q -p gradle-plugin jar", "cd sbt-plugin && sbt -batch +package"]
+
+[tasks."example:maven"]
+description = "Deploy the example library with Maven and compile the example app against it (set CLOUDSMITH_ORG and CLOUDSMITH_REPO)"
+run = "examples/run.sh maven"
+
+[tasks."example:gradle"]
+description = "Publish the example library with Gradle and compile the example app against it (set CLOUDSMITH_ORG and CLOUDSMITH_REPO)"
+run = "examples/run.sh gradle"
+
+[tasks."example:sbt"]
+description = "Publish the example library with sbt and compile the example app against it (set CLOUDSMITH_ORG and CLOUDSMITH_REPO)"
+run = "examples/run.sh sbt"
+
+[tasks."publish:cloudsmith"]
+description = "Publish the extension and the plugins to the Cloudsmith repository in CLOUDSMITH_ORG and CLOUDSMITH_REPO"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+url="https://maven.cloudsmith.io/${CLOUDSMITH_ORG:?Set CLOUDSMITH_ORG}/${CLOUDSMITH_REPO:?Set CLOUDSMITH_REPO}/"
+version="$(sed -n 's#.*<version>\\(.*\\)</version><!-- x-release-please-version -->#\\1#p' maven-extension/pom.xml)"
+mise run build
+
+# Each tool authenticates the upload of its own release. The copies keep the loaded jars apart from
+# the jars that the builds write again.
+tools="$(mktemp -d)"
+trap 'rm -rf "${tools}" sbt-plugin/project/cloudsmith-release.sbt' EXIT
+cp "maven-extension/target/cloudsmith-maven-extension-${version}.jar" "${tools}/extension.jar"
+cp "gradle-plugin/build/libs/cloudsmith-gradle-plugin-${version}.jar" "${tools}/gradle-plugin.jar"
+cp "sbt-plugin/target/scala-2.12/sbt-1.0/sbt-cloudsmith_2.12_1.0-${version}.jar" "${tools}/sbt-plugin.jar"
+printf 'Compile / unmanagedJars += Attributed.blank(file("%s"))\\n' "${tools}/sbt-plugin.jar" \\
+  > sbt-plugin/project/cloudsmith-release.sbt
+
+mvn -B -f maven-extension/pom.xml deploy -DskipTests \\
+  -Dmaven.ext.class.path="${tools}/extension.jar" -DaltDeploymentRepository="cloudsmith::${url}"
+CLOUDSMITH_PLUGIN_JAR="${tools}/gradle-plugin.jar" gradle -p gradle-plugin \\
+  --init-script cloudsmith.init.gradle.kts -Pcloudsmith.publish.url="${url}" \\
+  publishAllPublicationsToCloudsmithRepository
+(cd sbt-plugin && sbt -batch "set publishTo := Some(\\"cloudsmith\\" at \\"${url}\\")" +publish)
+"""
+
+[tasks."publish:maven-central"]
+description = "Sign the Maven extension and the sbt plugin and publish them to Maven Central (see RELEASING.md)"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+mvn -B -f maven-extension/pom.xml -P central -s maven-extension/central-settings.xml deploy -DskipTests
+# sbt-pgp signs with the key in the gpg keyring, and sbt reads the Central token from SONATYPE_*.
+(cd sbt-plugin && SONATYPE_USERNAME="${MAVEN_CENTRAL_USERNAME}" SONATYPE_PASSWORD="${MAVEN_CENTRAL_PASSWORD}" \\
+  PGP_PASSPHRASE="${MAVEN_GPG_PASSPHRASE}" sbt -batch +publishSigned sonaRelease)
+"""
+
+[tasks."publish:gradle-plugin-portal"]
+description = "Publish the Gradle plugin to the Gradle Plugin Portal (see RELEASING.md for the variables)"
+run = "gradle -p gradle-plugin publishPlugins"
+
+[tasks.format]
+description = "Format the Java sources"
+run = "git ls-files -z '*.java' | xargs -0 google-java-format --replace"
+
+[tasks.lint]
+description = "Run every check CI runs"
+run = "prek run --all-files"
+
+[tasks.hooks]
+description = "Install the git hooks so the checks run before each commit"
+run = "prek install"
+
+[tasks.secrets]
+description = "Scan the whole working tree and history for secrets"
+run = ["gitleaks dir --redact --verbose .", "gitleaks git --redact --verbose ."]
