@@ -205,3 +205,10 @@ jobs:
           unzip -p gradle-plugin/build/libs/cloudsmith-gradle-plugin-*.jar \
             META-INF/gradle-plugins/io.cloudsmith.gradle-plugin.properties \
             | grep -x 'implementation-class=io.cloudsmith.gradle.CloudsmithPlugin'
+
+      - name: Check that the sbt jars declare the plugin
+        run: |
+          for jar in sbt-plugin/target/scala-2.12/sbt-1.0/sbt-cloudsmith-*.jar \
+              sbt-plugin/target/scala-3.8.4/sbt-2/sbt-cloudsmith_sbt2_3-*.jar; do
+            unzip -p "$jar" sbt/sbt.autoplugins | grep -x 'io.cloudsmith.sbt.CloudsmithPlugin'
+          done
