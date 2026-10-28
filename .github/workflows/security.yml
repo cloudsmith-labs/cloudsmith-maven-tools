@@ -33,7 +33,7 @@ jobs:
           persist-credentials: false
 
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
         with:
           # Print the findings and fail the job on them. A SARIF upload needs code
           # scanning, which a private repository does not have without Advanced Security.
@@ -54,7 +54,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain with mise
-        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
 
       # The gitleaks hook scans staged changes only, which are empty in CI.
       - name: Scan the working tree and the commit history
