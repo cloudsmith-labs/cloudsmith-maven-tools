@@ -1,6 +1,7 @@
 [tools]
 java = "temurin-25"
-"aqua:apache/maven" = "3.10.0"
+# Maven Central, not archive.apache.org, which often times out in CI.
+"http:maven" = { version = "3.10.0", url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/{{version}}/apache-maven-{{version}}-bin.tar.gz", strip_components = 1 }
 gradle = "9.8.1"
 "github:sbt/sbt" = "1.13.0"
 google-java-format = "1.37.0"

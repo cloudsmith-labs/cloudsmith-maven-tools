@@ -2,39 +2,6 @@
 
 lockfile_version = 1
 
-[[tools."aqua:apache/maven"]]
-version = "3.10.0"
-backend = "aqua:apache/maven"
-specifiers = ["3.10.0"]
-
-[tools."aqua:apache/maven"."platforms.linux-arm64"]
-checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
-url = "https://archive.apache.org/dist/maven/maven-3/3.10.0/binaries/apache-maven-3.10.0-bin.tar.gz"
-
-[tools."aqua:apache/maven"."platforms.linux-arm64-musl"]
-checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
-url = "https://archive.apache.org/dist/maven/maven-3/3.10.0/binaries/apache-maven-3.10.0-bin.tar.gz"
-
-[tools."aqua:apache/maven"."platforms.linux-x64"]
-checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
-url = "https://archive.apache.org/dist/maven/maven-3/3.10.0/binaries/apache-maven-3.10.0-bin.tar.gz"
-
-[tools."aqua:apache/maven"."platforms.linux-x64-musl"]
-checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
-url = "https://archive.apache.org/dist/maven/maven-3/3.10.0/binaries/apache-maven-3.10.0-bin.tar.gz"
-
-[tools."aqua:apache/maven"."platforms.macos-arm64"]
-checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
-url = "https://archive.apache.org/dist/maven/maven-3/3.10.0/binaries/apache-maven-3.10.0-bin.tar.gz"
-
-[tools."aqua:apache/maven"."platforms.macos-x64"]
-checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
-url = "https://archive.apache.org/dist/maven/maven-3/3.10.0/binaries/apache-maven-3.10.0-bin.tar.gz"
-
-[tools."aqua:apache/maven"."platforms.windows-x64"]
-checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
-url = "https://archive.apache.org/dist/maven/maven-3/3.10.0/binaries/apache-maven-3.10.0-bin.tar.gz"
-
 [[tools."aqua:cloudsmith-io/cloudsmith-cli"]]
 version = "1.28.0"
 backend = "aqua:cloudsmith-io/cloudsmith-cli"
@@ -229,6 +196,42 @@ url_api = "https://api.github.com/repos/gradle/gradle-distributions/releases/ass
 checksum = "sha256:dce76f55f8e251a3a1f130eb120f30b3d271de2b76c9b0729d316b5a1b6dc01f"
 url = "https://github.com/gradle/gradle-distributions/releases/download/v9.8.1/gradle-9.8.1-bin.zip"
 url_api = "https://api.github.com/repos/gradle/gradle-distributions/releases/assets/619283790"
+
+[[tools."http:maven"]]
+version = "3.10.0"
+backend = "http:maven"
+specifiers = ["3.10.0"]
+
+[tools."http:maven".options]
+strip_components = "1"
+
+[tools."http:maven"."platforms.linux-arm64"]
+checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
+url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.10.0/apache-maven-3.10.0-bin.tar.gz"
+
+[tools."http:maven"."platforms.linux-arm64-musl"]
+checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
+url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.10.0/apache-maven-3.10.0-bin.tar.gz"
+
+[tools."http:maven"."platforms.linux-x64"]
+checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
+url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.10.0/apache-maven-3.10.0-bin.tar.gz"
+
+[tools."http:maven"."platforms.linux-x64-musl"]
+checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
+url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.10.0/apache-maven-3.10.0-bin.tar.gz"
+
+[tools."http:maven"."platforms.macos-arm64"]
+checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
+url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.10.0/apache-maven-3.10.0-bin.tar.gz"
+
+[tools."http:maven"."platforms.macos-x64"]
+checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
+url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.10.0/apache-maven-3.10.0-bin.tar.gz"
+
+[tools."http:maven"."platforms.windows-x64"]
+checksum = "sha512:908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
+url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.10.0/apache-maven-3.10.0-bin.tar.gz"
 
 [[tools.java]]
 version = "temurin-25.0.4+101.0.LTS"
