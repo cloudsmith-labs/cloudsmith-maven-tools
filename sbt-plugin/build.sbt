@@ -2,7 +2,7 @@ enablePlugins(SbtPlugin)
 
 organization := "io.cloudsmith"
 name := "sbt-cloudsmith"
-version := "0.2.0" // x-release-please-version
+version := "0.2.1" // x-release-please-version
 description := "Authenticates sbt to Cloudsmith Maven repositories with the credential helper of the cloudsmith CLI"
 homepage := Some(url("https://github.com/cloudsmith-labs/cloudsmith-maven-tools"))
 licenses := Seq("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0"))

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/cloudsmith-labs/cloudsmith-maven-tools/compare/v0.2.0...v0.2.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* make the warnings about the cloudsmith CLI easier to act on ([#11](https://github.com/cloudsmith-labs/cloudsmith-maven-tools/issues/11)) ([6c22eab](https://github.com/cloudsmith-labs/cloudsmith-maven-tools/commit/6c22eab594e8f4623568b4fc72dba49c14f6dcf9))
+
 ## [0.2.0](https://github.com/cloudsmith-labs/cloudsmith-maven-tools/compare/v0.1.0...v0.2.0) (2026-11-06)
 
 
