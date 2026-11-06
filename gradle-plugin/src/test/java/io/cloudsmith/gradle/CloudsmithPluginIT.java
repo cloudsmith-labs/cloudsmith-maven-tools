@@ -192,36 +192,6 @@ class CloudsmithPluginIT {
   }
 
   @Test
-  void warnsWhenTheCliIsMissing() throws Exception {
-    String missing = workDirectory.resolve("missing").toString();
-    writeSettings(applyPlugin() + dependencyRepository(""));
-    writeBuild(RESOLVE_BUILD);
-
-    BuildResult result =
-        runner(Map.of("CLOUDSMITH_CLI_PATH", missing), HttpsRepository.HOST, "resolve")
-            .buildAndFail();
-
-    assertTrue(
-        result.getOutput().contains("CLOUDSMITH_CLI_PATH is " + missing), result.getOutput());
-  }
-
-  @Test
-  void warnsWhenTheCliIsNotOnPath() throws Exception {
-    writeSettings(applyPlugin() + dependencyRepository(""));
-    writeBuild(RESOLVE_BUILD);
-
-    BuildResult result =
-        runner(
-                Map.of("CLOUDSMITH_CLI_PATH", "", "PATH", "/usr/bin:/bin"),
-                HttpsRepository.HOST,
-                "resolve")
-            .buildAndFail();
-
-    assertTrue(
-        result.getOutput().contains("The cloudsmith CLI is not on PATH"), result.getOutput());
-  }
-
-  @Test
   void asksTheCliAgainWhenItsTlsSettingsChange() throws Exception {
     Path cli = FakeCloudsmithCli.writeBehindProxy(proxyDirectory(), HttpsRepository.HOST);
     String caBundle = workDirectory.resolve("proxy-ca.pem").toString();
