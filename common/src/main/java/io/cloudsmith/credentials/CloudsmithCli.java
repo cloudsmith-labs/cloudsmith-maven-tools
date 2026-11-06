@@ -4,6 +4,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -28,11 +29,13 @@ import org.slf4j.LoggerFactory;
  * project uses.
  *
  * <p>Every failure returns {@code null}, so a missing, broken or unauthenticated CLI leaves the
- * build to behave as if the extension or plugin were absent.
+ * build to behave as if the extension or plugin were absent. Each failure logs a warning, because
+ * the build then gets 401 responses with no other clue to the cause.
  */
 public final class CloudsmithCli {
   private static final Logger LOGGER = LoggerFactory.getLogger(CloudsmithCli.class);
   private static final Long CONTRACT_VERSION = 1L;
+  private static final String NO_CREDENTIAL = "so no repository gets the CLI credential";
 
   /** Takes the CLI arguments and returns the stdout of the CLI, or {@code null} if it failed. */
   private final Function<List<String>, String> runner;
@@ -44,7 +47,21 @@ public final class CloudsmithCli {
   /** Returns a CLI that runs the {@code cloudsmith} binary, or {@code null} if there is none. */
   static CloudsmithCli locate(Map<String, String> environment, boolean windows, Duration timeout) {
     Path binary = findBinary(environment, windows);
-    return binary == null ? null : new CloudsmithCli(arguments -> run(binary, arguments, timeout));
+    if (binary == null) {
+      Warnings.warn(missingBinaryMessage(environment));
+      return null;
+    }
+    return new CloudsmithCli(arguments -> run(binary, arguments, timeout));
+  }
+
+  private static String missingBinaryMessage(Map<String, String> environment) {
+    String explicitPath = environment.get("CLOUDSMITH_CLI_PATH");
+    if (explicitPath != null && !explicitPath.isEmpty()) {
+      return "CLOUDSMITH_CLI_PATH is %s, which is not an executable file, %s."
+          .formatted(explicitPath, NO_CREDENTIAL);
+    }
+    return "The cloudsmith CLI is not on PATH, %s. Install the CLI, or set CLOUDSMITH_CLI_PATH."
+        .formatted(NO_CREDENTIAL);
   }
 
   /** Runs {@code credential-helper generic} and returns its credential, or {@code null}. */
@@ -120,32 +137,47 @@ public final class CloudsmithCli {
     return null;
   }
 
-  /** Runs the binary directly, with no shell and an empty stdin, and returns its stdout. */
+  /**
+   * Runs the binary directly, with no shell and an empty stdin, and returns its stdout.
+   *
+   * <p>A failure logs the stderr of the CLI, which explains most failures. The CLI never prints the
+   * credential on stderr.
+   */
   static String run(Path binary, List<String> arguments, Duration timeout) {
     List<String> command = new ArrayList<>();
     command.add(binary.toString());
     command.addAll(arguments);
+    String commandLine = "cloudsmith " + String.join(" ", arguments);
     Process process;
     try {
-      process = new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+      process = new ProcessBuilder(command).start();
       process.getOutputStream().close();
     } catch (IOException notExecutable) {
-      LOGGER.debug("The cloudsmith CLI could not be executed: {}", notExecutable.getMessage());
+      Warnings.warn(
+          "%s could not start, %s: %s"
+              .formatted(commandLine, NO_CREDENTIAL, notExecutable.getMessage()));
       return null;
     }
 
-    // Stdout is read on its own thread, so a full pipe cannot block the CLI past the timeout.
-    FutureTask<byte[]> stdout = new FutureTask<>(process.getInputStream()::readAllBytes);
-    Thread reader = new Thread(stdout, "cloudsmith-cli-stdout");
-    reader.setDaemon(true);
-    reader.start();
+    // Each stream is read on its own thread, so a full pipe cannot block the CLI past the timeout.
+    FutureTask<byte[]> stdout = readInBackground(process.getInputStream(), "stdout");
+    FutureTask<byte[]> stderr = readInBackground(process.getErrorStream(), "stderr");
     try {
       if (!process.waitFor(timeout.toMillis(), MILLISECONDS)) {
-        LOGGER.debug("The cloudsmith CLI timed out after {}", timeout);
+        Warnings.warn(
+            ("%s did not finish in %s seconds, %s."
+                    + " Set CLOUDSMITH_MAVEN_TOOLS_TIMEOUT to allow more time.")
+                .formatted(commandLine, timeout.toMillis() / 1000.0, NO_CREDENTIAL));
         return null;
       }
       if (process.exitValue() != 0) {
-        LOGGER.debug("The cloudsmith CLI exited with status {}", process.exitValue());
+        Warnings.warn(
+            "%s exited with status %d, %s.%s"
+                .formatted(
+                    commandLine,
+                    process.exitValue(),
+                    NO_CREDENTIAL,
+                    stderrSection(stderr, timeout)));
         return null;
       }
       return new String(stdout.get(timeout.toMillis(), MILLISECONDS), StandardCharsets.UTF_8);
@@ -153,10 +185,31 @@ public final class CloudsmithCli {
       Thread.currentThread().interrupt();
       return null;
     } catch (ExecutionException | TimeoutException unreadable) {
-      LOGGER.debug("The output of the cloudsmith CLI could not be read");
+      Warnings.warn(
+          "The output of %s could not be read, %s.".formatted(commandLine, NO_CREDENTIAL));
       return null;
     } finally {
       process.destroyForcibly();
+    }
+  }
+
+  private static FutureTask<byte[]> readInBackground(InputStream stream, String name) {
+    FutureTask<byte[]> content = new FutureTask<>(stream::readAllBytes);
+    Thread reader = new Thread(content, "cloudsmith-cli-" + name);
+    reader.setDaemon(true);
+    reader.start();
+    return content;
+  }
+
+  /** Returns the stderr of a finished CLI as lines to append to a message, or an empty string. */
+  private static String stderrSection(FutureTask<byte[]> stderr, Duration timeout)
+      throws InterruptedException {
+    try {
+      String text =
+          new String(stderr.get(timeout.toMillis(), MILLISECONDS), StandardCharsets.UTF_8).strip();
+      return text.isEmpty() ? "" : " The CLI printed:" + System.lineSeparator() + text;
+    } catch (ExecutionException | TimeoutException unreadable) {
+      return "";
     }
   }
 
@@ -168,7 +221,9 @@ public final class CloudsmithCli {
     try {
       return Json.parse(stdout) instanceof Map<?, ?> object ? object : null;
     } catch (IllegalArgumentException malformed) {
-      LOGGER.debug("cloudsmith {} printed output that is not JSON", arguments[0]);
+      Warnings.warn(
+          "cloudsmith %s printed output that is not JSON, %s."
+              .formatted(String.join(" ", arguments), NO_CREDENTIAL));
       return null;
     }
   }

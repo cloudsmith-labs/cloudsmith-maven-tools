@@ -95,6 +95,23 @@ class CloudsmithTransporterFactoryIT {
     assertFalse(repository.receivedAuthorizations().contains(cliCredential()), result.output);
   }
 
+  @Test
+  void warnsWithTheErrorOfTheCliWhenTheCliFails() throws Exception {
+    Path cli = FakeCloudsmithCli.writeBehindProxy(proxyDirectory(), HttpsRepository.HOST);
+
+    BuildResult result = runMaven(cli, writeSettings(""), "validate");
+
+    assertNotEquals(0, result.exitCode, result.output);
+    assertTrue(
+        result.output.contains("[WARNING] cloudsmith domains list exited with status 1"),
+        result.output);
+    assertTrue(result.output.contains(FakeCloudsmithCli.PROXY_HINT), result.output);
+  }
+
+  private Path proxyDirectory() throws IOException {
+    return Files.createDirectories(workDirectory.resolve("proxy"));
+  }
+
   private Path cliListing(String host) throws IOException {
     return FakeCloudsmithCli.write(workDirectory, host);
   }
@@ -124,6 +141,7 @@ class CloudsmithTransporterFactoryIT {
     environment
         .keySet()
         .removeIf(name -> name.startsWith("CLOUDSMITH_") || name.startsWith("MAVEN_"));
+    environment.remove("REQUESTS_CA_BUNDLE");
     environment.put(
         "JAVA_HOME", System.getProperty("it.java.home", System.getProperty("java.home")));
     environment.put("CLOUDSMITH_CLI_PATH", fakeCli.toString());

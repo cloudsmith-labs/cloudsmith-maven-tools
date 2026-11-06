@@ -194,6 +194,37 @@ class CloudsmithCliTest {
       assertNull(find(Map.of()));
     }
 
+    @Test
+    void warnsWhenTheCliIsNotOnPath() {
+      List<String> warnings = new ArrayList<>();
+
+      assertNull(Warnings.to(warnings::add, () -> CloudsmithCli.locate(Map.of(), false, TIMEOUT)));
+
+      assertEquals(
+          List.of(
+              "The cloudsmith CLI is not on PATH, so no repository gets the CLI credential."
+                  + " Install the CLI, or set CLOUDSMITH_CLI_PATH."),
+          warnings);
+    }
+
+    @Test
+    void warnsWhenTheExplicitCliPathIsNotExecutable() {
+      String missing = directory.resolve("missing").toString();
+      List<String> warnings = new ArrayList<>();
+
+      Warnings.to(
+          warnings::add,
+          () -> CloudsmithCli.locate(Map.of("CLOUDSMITH_CLI_PATH", missing), false, TIMEOUT));
+
+      assertEquals(
+          List.of(
+              "CLOUDSMITH_CLI_PATH is "
+                  + missing
+                  + ", which is not an executable file, so no repository gets the CLI"
+                  + " credential."),
+          warnings);
+    }
+
     private static Path find(Map<String, String> environment) {
       return CloudsmithCli.findBinary(environment, false);
     }
@@ -220,8 +251,16 @@ class CloudsmithCliTest {
     }
 
     @Test
-    void discardsStderr() throws IOException {
+    void ignoresStderrWhenTheCommandSucceeds() throws IOException {
       assertEquals("ok", run("echo warning >&2; printf ok"));
+    }
+
+    @Test
+    void readsALargeStderrWithoutBlocking() throws IOException {
+      Path cli = script("head -c 200000 /dev/zero >&2; exit 1");
+
+      assertTimeoutPreemptively(
+          Duration.ofSeconds(10), () -> assertNull(CloudsmithCli.run(cli, List.of(), TIMEOUT)));
     }
 
     @Test
@@ -232,6 +271,22 @@ class CloudsmithCliTest {
     @Test
     void returnsNullForANonZeroExit() throws IOException {
       assertNull(run("printf partial; exit 3"));
+    }
+
+    @Test
+    void warnsWithTheStderrOfAFailedCommand() throws IOException {
+      Path cli = script("echo 'Hint: set REQUESTS_CA_BUNDLE.' >&2; exit 3");
+      List<String> warnings = new ArrayList<>();
+
+      Warnings.to(warnings::add, () -> CloudsmithCli.run(cli, List.of("domains", "list"), TIMEOUT));
+
+      assertEquals(
+          List.of(
+              "cloudsmith domains list exited with status 3, so no repository gets the CLI"
+                  + " credential. The CLI printed:"
+                  + System.lineSeparator()
+                  + "Hint: set REQUESTS_CA_BUNDLE."),
+          warnings);
     }
 
     @Test
