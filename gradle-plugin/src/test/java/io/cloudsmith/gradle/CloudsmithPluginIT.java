@@ -186,7 +186,7 @@ class CloudsmithPluginIT {
             .buildAndFail();
 
     assertTrue(
-        result.getOutput().contains("cloudsmith domains list exited with status 1"),
+        result.getOutput().contains("`cloudsmith domains list` exited with status 1"),
         result.getOutput());
     assertTrue(result.getOutput().contains(FakeCloudsmithCli.PROXY_HINT), result.getOutput());
   }

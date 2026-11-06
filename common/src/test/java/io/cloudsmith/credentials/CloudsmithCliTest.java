@@ -131,8 +131,9 @@ class CloudsmithCliTest {
 
       assertEquals(
           List.of(
-              "cloudsmith domains list printed output that is not JSON, so no repository gets"
-                  + " the CLI credential. The CLI printed:"
+              "Cloudsmith: the cloudsmith CLI gave an answer that is not JSON, so the build gets"
+                  + " no credential for Cloudsmith repositories. Update the cloudsmith CLI."
+                  + " `cloudsmith domains list` printed:"
                   + System.lineSeparator()
                   + "Hint: check the proxy."),
           warnings);
@@ -146,8 +147,8 @@ class CloudsmithCliTest {
 
       assertEquals(
           List.of(
-              "cloudsmith domains list printed output that is not JSON, so no repository gets"
-                  + " the CLI credential."),
+              "Cloudsmith: the cloudsmith CLI gave an answer that is not JSON, so the build gets"
+                  + " no credential for Cloudsmith repositories. Update the cloudsmith CLI."),
           warnings);
     }
 
@@ -236,8 +237,9 @@ class CloudsmithCliTest {
 
       assertEquals(
           List.of(
-              "The cloudsmith CLI is not on PATH, so no repository gets the CLI credential."
-                  + " Install the CLI, or set CLOUDSMITH_CLI_PATH."),
+              "Cloudsmith: the cloudsmith CLI is not on PATH, so the build gets no credential for"
+                  + " Cloudsmith repositories. Install the cloudsmith CLI, or set"
+                  + " CLOUDSMITH_CLI_PATH to its path."),
           warnings);
     }
 
@@ -252,10 +254,11 @@ class CloudsmithCliTest {
 
       assertEquals(
           List.of(
-              "CLOUDSMITH_CLI_PATH is "
+              "Cloudsmith: CLOUDSMITH_CLI_PATH is "
                   + missing
-                  + ", which is not an executable file, so no repository gets the CLI"
-                  + " credential."),
+                  + ", which is not an executable file, so the build gets no credential for"
+                  + " Cloudsmith repositories. Set CLOUDSMITH_CLI_PATH to the path of the"
+                  + " cloudsmith CLI."),
           warnings);
     }
 
@@ -317,10 +320,37 @@ class CloudsmithCliTest {
 
       assertEquals(
           List.of(
-              "cloudsmith domains list exited with status 3, so no repository gets the CLI"
-                  + " credential. The CLI printed:"
+              "Cloudsmith: the cloudsmith CLI failed, so the build gets no credential for"
+                  + " Cloudsmith repositories. `cloudsmith domains list` exited with status 3 and"
+                  + " printed:"
                   + System.lineSeparator()
                   + "Hint: set REQUESTS_CA_BUNDLE."),
+          warnings);
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = {
+          "Error: Failed to fetch domains for 'ws': 401 - Authentication credentials were not"
+              + " provided.",
+          "Error: Unable to retrieve credentials. Provide credentials via CLOUDSMITH_API_KEY."
+        })
+    void tellsTheUserToSignInWhenTheCliHasNoValidCredential(String error) throws IOException {
+      Path cli =
+          script("echo 'Warning: an unrelated notice.' >&2; echo \"" + error + "\" >&2; exit 1");
+      List<String> warnings = new ArrayList<>();
+
+      Warnings.to(warnings::add, () -> CloudsmithCli.run(cli, List.of("domains", "list"), TIMEOUT));
+
+      assertEquals(
+          List.of(
+              "Cloudsmith: the cloudsmith CLI is not signed in, or its credential is not valid, so"
+                  + " the build gets no credential for Cloudsmith repositories. Sign in with"
+                  + " `cloudsmith auth`, or set CLOUDSMITH_API_KEY. `cloudsmith whoami --verbose`"
+                  + " shows the credential that the CLI uses. `cloudsmith domains list` exited"
+                  + " with status 1 and printed:"
+                  + System.lineSeparator()
+                  + error),
           warnings);
     }
 
@@ -338,6 +368,11 @@ class CloudsmithCliTest {
                       CloudsmithCli.run(cli, List.of("domains", "list"), Duration.ofMillis(500))));
 
       assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(
+          warnings
+              .get(0)
+              .startsWith("Cloudsmith: the cloudsmith CLI did not answer in 0.5 seconds"),
+          warnings.get(0));
       assertTrue(
           warnings.get(0).endsWith("Request failed: retrying in 5 second(s) ..."), warnings.get(0));
     }

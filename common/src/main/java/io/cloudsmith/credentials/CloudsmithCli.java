@@ -6,6 +6,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -21,6 +22,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +38,17 @@ import org.slf4j.LoggerFactory;
 public final class CloudsmithCli {
   private static final Logger LOGGER = LoggerFactory.getLogger(CloudsmithCli.class);
   private static final Long CONTRACT_VERSION = 1L;
-  private static final String NO_CREDENTIAL = "so no repository gets the CLI credential";
+  private static final String NO_CREDENTIAL =
+      "so the build gets no credential for Cloudsmith repositories";
+  private static final String SIGN_IN =
+      " Sign in with `cloudsmith auth`, or set CLOUDSMITH_API_KEY. `cloudsmith whoami --verbose`"
+          + " shows the credential that the CLI uses.";
+
+  /** The text of the CLI when it has no credential, or the API rejects it. */
+  private static final Pattern NO_VALID_CREDENTIAL =
+      Pattern.compile("\\b401\\b|Unable to retrieve credentials");
+
+  private static final Pattern FIRST_ERROR = Pattern.compile("(?m)^Error:");
   private static final int STDERR_LIMIT = 16 * 1024;
 
   /** The stdout and stderr of a CLI command that exited with status 0. */
@@ -62,10 +74,12 @@ public final class CloudsmithCli {
   private static String missingBinaryMessage(Map<String, String> environment) {
     String explicitPath = environment.get("CLOUDSMITH_CLI_PATH");
     if (explicitPath != null && !explicitPath.isEmpty()) {
-      return "CLOUDSMITH_CLI_PATH is %s, which is not an executable file, %s."
+      return ("Cloudsmith: CLOUDSMITH_CLI_PATH is %s, which is not an executable file, %s."
+              + " Set CLOUDSMITH_CLI_PATH to the path of the cloudsmith CLI.")
           .formatted(explicitPath, NO_CREDENTIAL);
     }
-    return "The cloudsmith CLI is not on PATH, %s. Install the CLI, or set CLOUDSMITH_CLI_PATH."
+    return ("Cloudsmith: the cloudsmith CLI is not on PATH, %s. Install the cloudsmith CLI, or set"
+            + " CLOUDSMITH_CLI_PATH to its path.")
         .formatted(NO_CREDENTIAL);
   }
 
@@ -159,8 +173,8 @@ public final class CloudsmithCli {
       process.getOutputStream().close();
     } catch (IOException notExecutable) {
       Warnings.warn(
-          "%s could not start, %s: %s"
-              .formatted(commandLine, NO_CREDENTIAL, notExecutable.getMessage()));
+          "Cloudsmith: the cloudsmith CLI could not start, %s. `%s` failed: %s"
+              .formatted(NO_CREDENTIAL, commandLine, notExecutable.getMessage()));
       return null;
     }
 
@@ -173,23 +187,16 @@ public final class CloudsmithCli {
     try {
       if (!process.waitFor(timeout.toMillis(), MILLISECONDS)) {
         Warnings.warn(
-            ("%s did not finish in %s seconds, %s."
-                    + " Set CLOUDSMITH_MAVEN_TOOLS_TIMEOUT to allow more time.%s")
+            ("Cloudsmith: the cloudsmith CLI did not answer in %s seconds, %s."
+                    + " Set CLOUDSMITH_MAVEN_TOOLS_TIMEOUT to a larger number of seconds.%s")
                 .formatted(
-                    commandLine,
-                    timeout.toMillis() / 1000.0,
+                    seconds(timeout),
                     NO_CREDENTIAL,
-                    stderrSection(stderr.textSoFar())));
+                    printed("`%s` printed so far:".formatted(commandLine), stderr.textSoFar())));
         return null;
       }
       if (process.exitValue() != 0) {
-        Warnings.warn(
-            "%s exited with status %d, %s.%s"
-                .formatted(
-                    commandLine,
-                    process.exitValue(),
-                    NO_CREDENTIAL,
-                    stderrSection(stderr.text(timeout))));
+        Warnings.warn(failureMessage(commandLine, process.exitValue(), stderr.text(timeout)));
         return null;
       }
       return new Output(
@@ -200,16 +207,47 @@ public final class CloudsmithCli {
       return null;
     } catch (ExecutionException | TimeoutException unreadable) {
       Warnings.warn(
-          "The output of %s could not be read, %s.".formatted(commandLine, NO_CREDENTIAL));
+          ("Cloudsmith: the output of the cloudsmith CLI could not be read, %s."
+                  + " The command was `%s`.")
+              .formatted(NO_CREDENTIAL, commandLine));
       return null;
     } finally {
       process.destroyForcibly();
     }
   }
 
-  /** Returns the stderr of the CLI as lines to append to a message, or an empty string. */
-  private static String stderrSection(String stderr) {
-    return stderr.isEmpty() ? "" : " The CLI printed:" + System.lineSeparator() + stderr;
+  /**
+   * Returns the warning for a CLI command that failed. A missing or rejected credential is the
+   * usual cause, so that warning says how to sign in.
+   */
+  private static String failureMessage(String commandLine, int status, String stderr) {
+    String cause =
+        NO_VALID_CREDENTIAL.matcher(stderr).find()
+            ? "the cloudsmith CLI is not signed in, or its credential is not valid, %s.%s"
+                .formatted(NO_CREDENTIAL, SIGN_IN)
+            : "the cloudsmith CLI failed, %s.".formatted(NO_CREDENTIAL);
+    String exited = "`%s` exited with status %d".formatted(commandLine, status);
+    return "Cloudsmith: "
+        + cause
+        + (stderr.isEmpty() ? " " + exited + "." : printed(exited + " and printed:", stderr));
+  }
+
+  /**
+   * Returns the introduction and then the stderr of the CLI from its first {@code Error:} line, so
+   * that unrelated notices of the CLI drop out. Returns an empty string for an empty stderr.
+   */
+  private static String printed(String introduction, String stderr) {
+    if (stderr.isEmpty()) {
+      return "";
+    }
+    Matcher error = FIRST_ERROR.matcher(stderr);
+    String relevant = error.find() ? stderr.substring(error.start()) : stderr;
+    return " " + introduction + System.lineSeparator() + relevant;
+  }
+
+  /** Returns the duration as a number of seconds with no trailing zeros, for example 30 or 0.5. */
+  private static String seconds(Duration duration) {
+    return BigDecimal.valueOf(duration.toMillis(), 3).stripTrailingZeros().toPlainString();
   }
 
   /**
@@ -261,9 +299,13 @@ public final class CloudsmithCli {
       return Json.parse(output.stdout()) instanceof Map<?, ?> object ? object : null;
     } catch (IllegalArgumentException malformed) {
       Warnings.warn(
-          "cloudsmith %s printed output that is not JSON, %s.%s"
+          ("Cloudsmith: the cloudsmith CLI gave an answer that is not JSON, %s."
+                  + " Update the cloudsmith CLI.%s")
               .formatted(
-                  String.join(" ", arguments), NO_CREDENTIAL, stderrSection(output.stderr())));
+                  NO_CREDENTIAL,
+                  printed(
+                      "`cloudsmith %s` printed:".formatted(String.join(" ", arguments)),
+                      output.stderr())));
       return null;
     }
   }
