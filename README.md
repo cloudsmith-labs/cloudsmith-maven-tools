@@ -53,7 +53,7 @@ Maven 3.9.0 or later is required.
 
    <!-- x-release-please-start-version -->
    ```sh
-   version=0.1.0
+   version=0.2.0
    base=https://dl.cloudsmith.io/public/cloudsmith/maven-tools/maven/io/cloudsmith/cloudsmith-maven-extension/$version
    curl -fsSLO "$base/cloudsmith-maven-extension-$version.jar"
    curl -fsSLO "$base/cloudsmith-maven-extension-$version.pom"
@@ -70,7 +70,7 @@ Maven 3.9.0 or later is required.
      <extension>
        <groupId>io.cloudsmith</groupId>
        <artifactId>cloudsmith-maven-extension</artifactId>
-       <version>0.1.0</version>
+       <version>0.2.0</version>
      </extension>
    </extensions>
    ```
@@ -128,7 +128,7 @@ Gradle 7.6 or later is required.
    }
 
    plugins {
-       id("io.cloudsmith.gradle-plugin") version "0.1.0"
+       id("io.cloudsmith.gradle-plugin") version "0.2.0"
    }
    ```
    <!-- x-release-please-end -->
@@ -179,7 +179,7 @@ initscript {
         maven { url = uri("https://dl.cloudsmith.io/public/cloudsmith/maven-tools/maven/") }
     }
     dependencies {
-        classpath("io.cloudsmith:cloudsmith-gradle-plugin:0.1.0")
+        classpath("io.cloudsmith:cloudsmith-gradle-plugin:0.2.0")
     }
 }
 
@@ -213,7 +213,7 @@ sbt 1.10 or later, or sbt 2.0 or later, is required.
    <!-- x-release-please-start-version -->
    ```scala
    resolvers += "cloudsmith-maven-tools" at "https://dl.cloudsmith.io/public/cloudsmith/maven-tools/maven/"
-   addSbtPlugin("io.cloudsmith" % "sbt-cloudsmith" % "0.1.0")
+   addSbtPlugin("io.cloudsmith" % "sbt-cloudsmith" % "0.2.0")
    ```
    <!-- x-release-please-end -->
 
