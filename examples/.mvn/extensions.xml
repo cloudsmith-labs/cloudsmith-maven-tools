@@ -4,6 +4,6 @@
   <extension>
     <groupId>io.cloudsmith</groupId>
     <artifactId>cloudsmith-maven-extension</artifactId>
-    <version>0.1.0</version><!-- x-release-please-version -->
+    <version>0.2.0</version><!-- x-release-please-version -->
   </extension>
 </extensions>
