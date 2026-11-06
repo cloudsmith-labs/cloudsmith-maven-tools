@@ -81,7 +81,7 @@ integration tests use the Gradle that runs them, unless you set
 
 ```sh
 # Maven 4, and the Maven under test on Java 17
-mise exec aqua:apache/maven@4.0.0-rc-7 -- mvn -B -f maven-extension/pom.xml verify \
+mise exec http:maven@4.0.0-rc-7 -- mvn -B -f maven-extension/pom.xml verify \
     -Dit.java.home="$(mise where java@temurin-17)"
 
 # Gradle 7.6 on Java 17

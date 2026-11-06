@@ -51,7 +51,7 @@ jobs:
       # test what its name says.
       - name: Confirm mise resolved the requested Maven
         run: |
-          resolved="$(mise exec "aqua:apache/maven@${MAVEN_VERSION}" -- mvn -v | head -n 1)"
+          resolved="$(mise exec "http:maven@${MAVEN_VERSION}" -- mvn -v | head -n 1)"
           echo "$resolved"
           case "$resolved" in
             "Apache Maven ${MAVEN_VERSION} "*) ;;
@@ -75,7 +75,7 @@ jobs:
           if [ -n "$IT_JAVA" ]; then
             arguments+=("-Dit.java.home=$(mise where "java@${IT_JAVA}")")
           fi
-          mise exec "aqua:apache/maven@${MAVEN_VERSION}" -- mvn -B -f maven-extension/pom.xml verify "${arguments[@]}"
+          mise exec "http:maven@${MAVEN_VERSION}" -- mvn -B -f maven-extension/pom.xml verify "${arguments[@]}"
 
   test-gradle:
     name: Test the Gradle plugin (Gradle ${{ matrix.gradle }}${{ matrix.it-java && format(', {0}', matrix.it-java) || '' }})
