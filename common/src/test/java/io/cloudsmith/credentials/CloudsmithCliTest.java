@@ -3,6 +3,7 @@ package io.cloudsmith.credentials;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,10 +31,14 @@ class CloudsmithCliTest {
   private final List<List<String>> invocations = new ArrayList<>();
 
   private CloudsmithCli cliAnswering(String stdout) {
+    return cliAnswering(stdout, "");
+  }
+
+  private CloudsmithCli cliAnswering(String stdout, String stderr) {
     return new CloudsmithCli(
         arguments -> {
           invocations.add(arguments);
-          return stdout;
+          return stdout == null ? null : new CloudsmithCli.Output(stdout, stderr);
         });
   }
 
@@ -115,6 +120,35 @@ class CloudsmithCliTest {
     @Test
     void returnsNullWhenTheCommandFails() {
       assertNull(cliAnswering(null).mavenHosts());
+    }
+
+    @Test
+    void warnsWithTheStderrWhenTheOutputIsNotJson() {
+      List<String> warnings = new ArrayList<>();
+
+      Warnings.to(
+          warnings::add, () -> cliAnswering("<html>", "Hint: check the proxy.").mavenHosts());
+
+      assertEquals(
+          List.of(
+              "cloudsmith domains list printed output that is not JSON, so no repository gets"
+                  + " the CLI credential. The CLI printed:"
+                  + System.lineSeparator()
+                  + "Hint: check the proxy."),
+          warnings);
+    }
+
+    @Test
+    void warnsWhenTheOutputIsBlank() {
+      List<String> warnings = new ArrayList<>();
+
+      Warnings.to(warnings::add, () -> cliAnswering("  ").mavenHosts());
+
+      assertEquals(
+          List.of(
+              "cloudsmith domains list printed output that is not JSON, so no repository gets"
+                  + " the CLI credential."),
+          warnings);
     }
 
     private static String fixture(String name) throws IOException {
@@ -247,12 +281,13 @@ class CloudsmithCliTest {
     void returnsStdoutAndPassesTheArguments() throws IOException {
       Path cli = script("printf '%s|%s' \"$1\" \"$2\"");
 
-      assertEquals("domains|list", CloudsmithCli.run(cli, List.of("domains", "list"), TIMEOUT));
+      assertEquals(
+          "domains|list", CloudsmithCli.run(cli, List.of("domains", "list"), TIMEOUT).stdout());
     }
 
     @Test
-    void ignoresStderrWhenTheCommandSucceeds() throws IOException {
-      assertEquals("ok", run("echo warning >&2; printf ok"));
+    void returnsStderrWhenTheCommandSucceeds() throws IOException {
+      assertEquals(new CloudsmithCli.Output("ok", "warning"), run("echo warning >&2; printf ok"));
     }
 
     @Test
@@ -265,7 +300,7 @@ class CloudsmithCliTest {
 
     @Test
     void givesTheCommandAnEmptyStdin() throws IOException {
-      assertEquals("read:", run("read line; printf 'read:%s' \"$line\""));
+      assertEquals("read:", run("read line; printf 'read:%s' \"$line\"").stdout());
     }
 
     @Test
@@ -290,6 +325,24 @@ class CloudsmithCliTest {
     }
 
     @Test
+    void warnsWithTheStderrSoFarWhenTheCommandTimesOut() throws IOException {
+      Path cli = script("echo 'Request failed: retrying in 5 second(s) ...' >&2; sleep 30");
+      List<String> warnings = new ArrayList<>();
+
+      assertTimeoutPreemptively(
+          Duration.ofSeconds(10),
+          () ->
+              Warnings.to(
+                  warnings::add,
+                  () ->
+                      CloudsmithCli.run(cli, List.of("domains", "list"), Duration.ofMillis(500))));
+
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(
+          warnings.get(0).endsWith("Request failed: retrying in 5 second(s) ..."), warnings.get(0));
+    }
+
+    @Test
     void returnsNullAndStopsTheCommandWhenItTimesOut() throws IOException {
       Path cli = script("sleep 30");
 
@@ -303,7 +356,7 @@ class CloudsmithCliTest {
       assertNull(CloudsmithCli.run(directory.resolve("missing"), List.of(), TIMEOUT));
     }
 
-    private String run(String body) throws IOException {
+    private CloudsmithCli.Output run(String body) throws IOException {
       return CloudsmithCli.run(script(body), List.of(), TIMEOUT);
     }
 

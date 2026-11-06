@@ -2,6 +2,7 @@ package io.cloudsmith.credentials;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,11 +37,15 @@ public final class CloudsmithCli {
   private static final Logger LOGGER = LoggerFactory.getLogger(CloudsmithCli.class);
   private static final Long CONTRACT_VERSION = 1L;
   private static final String NO_CREDENTIAL = "so no repository gets the CLI credential";
+  private static final int STDERR_LIMIT = 16 * 1024;
 
-  /** Takes the CLI arguments and returns the stdout of the CLI, or {@code null} if it failed. */
-  private final Function<List<String>, String> runner;
+  /** The stdout and stderr of a CLI command that exited with status 0. */
+  public record Output(String stdout, String stderr) {}
 
-  public CloudsmithCli(Function<List<String>, String> runner) {
+  /** Takes the CLI arguments and returns the output of the CLI, or {@code null} if it failed. */
+  private final Function<List<String>, Output> runner;
+
+  public CloudsmithCli(Function<List<String>, Output> runner) {
     this.runner = runner;
   }
 
@@ -138,12 +143,12 @@ public final class CloudsmithCli {
   }
 
   /**
-   * Runs the binary directly, with no shell and an empty stdin, and returns its stdout.
+   * Runs the binary directly, with no shell and an empty stdin, and returns its output.
    *
    * <p>A failure logs the stderr of the CLI, which explains most failures. The CLI never prints the
    * credential on stderr.
    */
-  static String run(Path binary, List<String> arguments, Duration timeout) {
+  static Output run(Path binary, List<String> arguments, Duration timeout) {
     List<String> command = new ArrayList<>();
     command.add(binary.toString());
     command.addAll(arguments);
@@ -160,14 +165,21 @@ public final class CloudsmithCli {
     }
 
     // Each stream is read on its own thread, so a full pipe cannot block the CLI past the timeout.
-    FutureTask<byte[]> stdout = readInBackground(process.getInputStream(), "stdout");
-    FutureTask<byte[]> stderr = readInBackground(process.getErrorStream(), "stderr");
+    FutureTask<byte[]> stdout = new FutureTask<>(process.getInputStream()::readAllBytes);
+    Thread reader = new Thread(stdout, "cloudsmith-cli-stdout");
+    reader.setDaemon(true);
+    reader.start();
+    StderrCollector stderr = new StderrCollector(process.getErrorStream());
     try {
       if (!process.waitFor(timeout.toMillis(), MILLISECONDS)) {
         Warnings.warn(
             ("%s did not finish in %s seconds, %s."
-                    + " Set CLOUDSMITH_MAVEN_TOOLS_TIMEOUT to allow more time.")
-                .formatted(commandLine, timeout.toMillis() / 1000.0, NO_CREDENTIAL));
+                    + " Set CLOUDSMITH_MAVEN_TOOLS_TIMEOUT to allow more time.%s")
+                .formatted(
+                    commandLine,
+                    timeout.toMillis() / 1000.0,
+                    NO_CREDENTIAL,
+                    stderrSection(stderr.textSoFar())));
         return null;
       }
       if (process.exitValue() != 0) {
@@ -177,10 +189,12 @@ public final class CloudsmithCli {
                     commandLine,
                     process.exitValue(),
                     NO_CREDENTIAL,
-                    stderrSection(stderr, timeout)));
+                    stderrSection(stderr.text(timeout))));
         return null;
       }
-      return new String(stdout.get(timeout.toMillis(), MILLISECONDS), StandardCharsets.UTF_8);
+      return new Output(
+          new String(stdout.get(timeout.toMillis(), MILLISECONDS), StandardCharsets.UTF_8),
+          stderr.text(timeout));
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
       return null;
@@ -193,37 +207,63 @@ public final class CloudsmithCli {
     }
   }
 
-  private static FutureTask<byte[]> readInBackground(InputStream stream, String name) {
-    FutureTask<byte[]> content = new FutureTask<>(stream::readAllBytes);
-    Thread reader = new Thread(content, "cloudsmith-cli-" + name);
-    reader.setDaemon(true);
-    reader.start();
-    return content;
+  /** Returns the stderr of the CLI as lines to append to a message, or an empty string. */
+  private static String stderrSection(String stderr) {
+    return stderr.isEmpty() ? "" : " The CLI printed:" + System.lineSeparator() + stderr;
   }
 
-  /** Returns the stderr of a finished CLI as lines to append to a message, or an empty string. */
-  private static String stderrSection(FutureTask<byte[]> stderr, Duration timeout)
-      throws InterruptedException {
-    try {
-      String text =
-          new String(stderr.get(timeout.toMillis(), MILLISECONDS), StandardCharsets.UTF_8).strip();
-      return text.isEmpty() ? "" : " The CLI printed:" + System.lineSeparator() + text;
-    } catch (ExecutionException | TimeoutException unreadable) {
-      return "";
+  /**
+   * Reads the stderr of the CLI on its own thread, so a full pipe cannot block the CLI, and keeps
+   * the first {@value #STDERR_LIMIT} bytes. A timeout can then report what the CLI printed so far.
+   */
+  private static final class StderrCollector {
+    private final ByteArrayOutputStream kept = new ByteArrayOutputStream();
+    private final Thread reader;
+
+    StderrCollector(InputStream stream) {
+      reader = new Thread(() -> collect(stream), "cloudsmith-cli-stderr");
+      reader.setDaemon(true);
+      reader.start();
+    }
+
+    private void collect(InputStream stream) {
+      byte[] buffer = new byte[8192];
+      try {
+        for (int read = stream.read(buffer); read != -1; read = stream.read(buffer)) {
+          synchronized (kept) {
+            kept.write(buffer, 0, Math.min(read, STDERR_LIMIT - kept.size()));
+          }
+        }
+      } catch (IOException closed) {
+        // The process ended, so the text so far is all the text.
+      }
+    }
+
+    /** Returns the text after the CLI closes stderr, or after the wait, whichever comes first. */
+    String text(Duration wait) throws InterruptedException {
+      reader.join(Math.max(1, wait.toMillis()));
+      return textSoFar();
+    }
+
+    String textSoFar() {
+      synchronized (kept) {
+        return kept.toString(StandardCharsets.UTF_8).strip();
+      }
     }
   }
 
   private Map<?, ?> runForObject(String... arguments) {
-    String stdout = runner.apply(List.of(arguments));
-    if (stdout == null || stdout.isBlank()) {
+    Output output = runner.apply(List.of(arguments));
+    if (output == null) {
       return null;
     }
     try {
-      return Json.parse(stdout) instanceof Map<?, ?> object ? object : null;
+      return Json.parse(output.stdout()) instanceof Map<?, ?> object ? object : null;
     } catch (IllegalArgumentException malformed) {
       Warnings.warn(
-          "cloudsmith %s printed output that is not JSON, %s."
-              .formatted(String.join(" ", arguments), NO_CREDENTIAL));
+          "cloudsmith %s printed output that is not JSON, %s.%s"
+              .formatted(
+                  String.join(" ", arguments), NO_CREDENTIAL, stderrSection(output.stderr())));
       return null;
     }
   }

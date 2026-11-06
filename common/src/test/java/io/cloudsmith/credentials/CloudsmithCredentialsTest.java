@@ -31,7 +31,8 @@ class CloudsmithCredentialsTest {
               new CloudsmithCli(
                   arguments -> {
                     commands.add(arguments.get(0));
-                    return arguments.get(0).equals("domains") ? DOMAINS : credentialStdout;
+                    String stdout = arguments.get(0).equals("domains") ? DOMAINS : credentialStdout;
+                    return stdout == null ? null : new CloudsmithCli.Output(stdout, "");
                   }),
           TTL,
           clock::get);
