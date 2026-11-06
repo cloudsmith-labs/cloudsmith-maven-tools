@@ -103,8 +103,7 @@ class CloudsmithTransporterFactoryIT {
 
     assertNotEquals(0, result.exitCode, result.output);
     assertTrue(
-        result.output.contains("[WARNING] cloudsmith domains list exited with status 1"),
-        result.output);
+        result.output.contains("[WARNING] Cloudsmith: the cloudsmith CLI failed"), result.output);
     assertTrue(result.output.contains(FakeCloudsmithCli.PROXY_HINT), result.output);
   }
 
