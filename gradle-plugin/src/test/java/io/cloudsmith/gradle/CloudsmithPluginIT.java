@@ -176,6 +176,41 @@ class CloudsmithPluginIT {
   }
 
   @Test
+  void warnsWithTheErrorOfTheCliWhenTheCliFails() throws Exception {
+    Path cli = FakeCloudsmithCli.writeBehindProxy(proxyDirectory(), HttpsRepository.HOST);
+    writeSettings(applyPlugin() + dependencyRepository(""));
+    writeBuild(RESOLVE_BUILD);
+
+    BuildResult result =
+        runner(Map.of("CLOUDSMITH_CLI_PATH", cli.toString()), HttpsRepository.HOST, "resolve")
+            .buildAndFail();
+
+    assertTrue(
+        result.getOutput().contains("cloudsmith domains list exited with status 1"),
+        result.getOutput());
+    assertTrue(result.getOutput().contains(FakeCloudsmithCli.PROXY_HINT), result.getOutput());
+  }
+
+  @Test
+  void asksTheCliAgainWhenItsTlsSettingsChange() throws Exception {
+    Path cli = FakeCloudsmithCli.writeBehindProxy(proxyDirectory(), HttpsRepository.HOST);
+    String caBundle = workDirectory.resolve("proxy-ca.pem").toString();
+    writeSettings(applyPlugin() + dependencyRepository(""));
+    writeBuild(RESOLVE_BUILD);
+
+    runner(Map.of("CLOUDSMITH_CLI_PATH", cli.toString()), HttpsRepository.HOST, "resolve")
+        .buildAndFail();
+    BuildResult fixed =
+        runner(
+                Map.of("CLOUDSMITH_CLI_PATH", cli.toString(), "REQUESTS_CA_BUNDLE", caBundle),
+                HttpsRepository.HOST,
+                "resolve")
+            .build();
+
+    assertTrue(fixed.getOutput().contains("Resolved [it-library-1.0.jar]"), fixed.getOutput());
+  }
+
+  @Test
   void reusesTheConfigurationCache() throws Exception {
     writeSettings(applyPlugin() + dependencyRepository(""));
     writeBuild(RESOLVE_BUILD);
@@ -214,7 +249,17 @@ class CloudsmithPluginIT {
     Files.writeString(project.resolve("build.gradle"), content);
   }
 
+  private Path proxyDirectory() throws IOException {
+    return Files.createDirectories(workDirectory.resolve("proxy"));
+  }
+
   private GradleRunner runner(String listedHost, String... arguments) throws IOException {
+    return runner(Map.of(), listedHost, arguments);
+  }
+
+  private GradleRunner runner(
+      Map<String, String> cliEnvironment, String listedHost, String... arguments)
+      throws IOException {
     Path fakeCli = FakeCloudsmithCli.write(workDirectory, listedHost);
     List<String> properties = new ArrayList<>();
     properties.add("org.gradle.jvmargs=" + repository.trustStoreOptions());
@@ -228,6 +273,7 @@ class CloudsmithPluginIT {
     environment.put("PATH", System.getenv("PATH"));
     environment.put("HOME", workDirectory.toString());
     environment.put("CLOUDSMITH_CLI_PATH", fakeCli.toString());
+    environment.putAll(cliEnvironment);
 
     List<String> allArguments = new ArrayList<>(List.of(arguments));
     allArguments.addAll(List.of("--stacktrace", "--warning-mode", "fail"));

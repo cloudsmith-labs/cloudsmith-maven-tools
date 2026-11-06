@@ -112,6 +112,19 @@ class CloudsmithPluginIT {
     assertFalse(repository.receivedAuthorizations().contains(cliCredential()), result.output());
   }
 
+  @Test
+  void warnsWithTheErrorOfTheCliWhenTheCliFails() throws Exception {
+    Path proxy = Files.createDirectories(workDirectory.resolve("proxy"));
+    Path cli = FakeCloudsmithCli.writeBehindProxy(proxy, HttpsRepository.HOST);
+
+    BuildResult result = runSbt(cli, resolverBuild(""), "update");
+
+    assertNotEquals(0, result.exitCode(), result.output());
+    assertTrue(
+        result.output().contains("cloudsmith domains list exited with status 1"), result.output());
+    assertTrue(result.output().contains(FakeCloudsmithCli.PROXY_HINT), result.output());
+  }
+
   private static String explicitCredential(String realm) {
     return "credentials += Credentials(\"%s\", \"%s\", \"explicit-user\", \"explicit-secret\")\n"
         .formatted(realm, HttpsRepository.HOST);
@@ -144,6 +157,10 @@ class CloudsmithPluginIT {
   }
 
   private BuildResult runSbt(String listedHost, String build, String command) throws Exception {
+    return runSbt(FakeCloudsmithCli.write(workDirectory, listedHost), build, command);
+  }
+
+  private BuildResult runSbt(Path cli, String build, String command) throws Exception {
     Path meta = Files.createDirectories(project.resolve("project"));
     Files.writeString(
         meta.resolve("build.properties"), "sbt.version=" + property("it.sbt.version"));
@@ -169,10 +186,10 @@ class CloudsmithPluginIT {
     environment
         .keySet()
         .removeIf(name -> name.startsWith("CLOUDSMITH_") || name.startsWith("SBT_"));
+    environment.remove("REQUESTS_CA_BUNDLE");
     environment.put(
         "JAVA_HOME", System.getProperty("it.java.home", System.getProperty("java.home")));
-    environment.put(
-        "CLOUDSMITH_CLI_PATH", FakeCloudsmithCli.write(workDirectory, listedHost).toString());
+    environment.put("CLOUDSMITH_CLI_PATH", cli.toString());
     environment.put(
         "SBT_OPTS",
         repository.trustStoreOptions()

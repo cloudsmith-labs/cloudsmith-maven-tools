@@ -21,8 +21,9 @@ repository in the build:
 3. Leave every other repository unchanged.
 
 If the CLI is missing, not authenticated, or fails, the build runs as if the
-extension or plugin were not installed. The CLI's answers are kept in memory
-for five minutes, so a build runs the CLI only a few times.
+extension or plugin were not installed, and logs a warning with the error of
+the CLI. The CLI's answers are kept in memory for five minutes, so a build runs
+the CLI only a few times.
 
 ## Prerequisites
 
@@ -163,6 +164,34 @@ and `dependencyResolutionManagement`, and the repositories of every project,
 including `maven-publish` repositories. To cover one project only, apply the
 plugin in the `plugins` block of that project instead.
 
+**Settings plugins from a private repository:** Gradle resolves all the
+plugins in the `plugins` block of `settings.gradle.kts` before it applies one
+of them. The plugin cannot cover the other plugins in that block, so they get
+a 401 response. Apply the plugin from an init script instead. An init script
+in `~/.gradle/init.d` applies the plugin to every build on the machine, before
+Gradle reads the settings:
+
+<!-- x-release-please-start-version -->
+```kotlin
+// ~/.gradle/init.d/cloudsmith.init.gradle.kts
+initscript {
+    repositories {
+        maven { url = uri("https://dl.cloudsmith.io/public/cloudsmith/maven-tools/maven/") }
+    }
+    dependencies {
+        classpath("io.cloudsmith:cloudsmith-gradle-plugin:0.1.0")
+    }
+}
+
+beforeSettings {
+    pluginManager.apply(io.cloudsmith.gradle.CloudsmithPlugin::class.java)
+}
+```
+<!-- x-release-please-end -->
+
+`cloudsmith credential-helper install gradle` writes this file, with Cloudsmith
+CLI 1.31.0 or later.
+
 **Fetch every dependency through Cloudsmith:** add Maven Central as an upstream
 of your Cloudsmith repository, and make it the only repository.
 
@@ -228,6 +257,10 @@ A custom domain belongs to one workspace, so its URLs leave out the workspace.
 Run Maven with `-X`, Gradle with `--info`, or `last update` in sbt. For each
 repository that gets the CLI credential, the log shows
 `Using the cloudsmith CLI credential for <repository URL>`.
+
+If the CLI is missing or fails, the build log shows a warning with the error
+of the CLI. Behind a TLS-intercepting proxy, set `REQUESTS_CA_BUNDLE` to a CA
+bundle that contains the proxy CA.
 
 If that line is missing, check the CLI:
 

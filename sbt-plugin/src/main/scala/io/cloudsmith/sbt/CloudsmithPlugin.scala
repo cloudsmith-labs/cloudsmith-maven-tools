@@ -1,6 +1,6 @@
 package io.cloudsmith.sbt
 
-import io.cloudsmith.credentials.CloudsmithCredentials
+import io.cloudsmith.credentials.{CloudsmithCredentials, Credential, Warnings}
 import java.net.URI
 import java.util.Locale
 import sbt._
@@ -29,7 +29,7 @@ object CloudsmithPlugin extends AutoPlugin {
   ): Seq[Credentials] =
     for {
       url <- repositories.collect { case maven: MavenRepository => maven.root }.distinct
-      credential <- Option(cli.credentialFor(url)).toSeq
+      credential <- Option(Warnings.to[Credential](log.warn(_), () => cli.credentialFor(url))).toSeq
       host = new URI(url).getHost.toLowerCase(Locale.ROOT)
       if !hostsWithCredentials(host)
     } yield {

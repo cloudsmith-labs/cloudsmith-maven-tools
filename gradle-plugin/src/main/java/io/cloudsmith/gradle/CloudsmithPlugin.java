@@ -4,7 +4,9 @@ import io.cloudsmith.credentials.CloudsmithCredentials;
 import io.cloudsmith.credentials.Credential;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
@@ -132,9 +134,24 @@ public abstract class CloudsmithPlugin implements Plugin<Object> {
       return environment;
     }
 
+    /** The TLS and proxy variables of the HTTP client of the CLI. */
+    private static final Set<String> NETWORK_VARIABLES =
+        Set.of(
+            "REQUESTS_CA_BUNDLE",
+            "CURL_CA_BUNDLE",
+            "SSL_CERT_FILE",
+            "SSL_CERT_DIR",
+            "HTTPS_PROXY",
+            "HTTP_PROXY",
+            "ALL_PROXY",
+            "NO_PROXY");
+
     /** Whether the variable changes which CLI runs or what it answers. */
     private static boolean affectsCli(String name) {
-      return name.startsWith("CLOUDSMITH_") || name.equals("PATH") || name.equals("HOME");
+      return name.startsWith("CLOUDSMITH_")
+          || name.equals("PATH")
+          || name.equals("HOME")
+          || NETWORK_VARIABLES.contains(name.toUpperCase(Locale.ROOT));
     }
   }
 }
