@@ -45,7 +45,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain with mise
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
 
       # Asserts rather than prints: a mismatch means that the leg does not
       # test what its name says.
@@ -103,7 +103,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain with mise
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
 
       # Asserts rather than prints: a mismatch means that the leg does not
       # test what its name says.
@@ -152,7 +152,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain with mise
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
 
       - name: Run the integration tests
         working-directory: sbt-plugin
@@ -169,7 +169,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain with mise
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
 
       - name: Run the hooks
         run: mise exec -- prek run --all-files --show-diff-on-failure
@@ -185,7 +185,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up the toolchain with mise
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
           # A poisoned cache entry restored here would end up in a release artifact.
           cache: false
