@@ -35,6 +35,28 @@ public final class FakeCloudsmithCli {
     return script;
   }
 
+  /** Writes a script that prints the password in {@code passwordFile}, so a test can renew it. */
+  public static Path writeRenewing(Path directory, String listedHost, Path passwordFile)
+      throws IOException {
+    Path script = directory.resolve("cloudsmith");
+    Files.writeString(
+        script,
+        """
+        #!/bin/sh
+        case "$1 $2" in
+          "domains list")
+            printf '%%s\\n' '{"version": 1, "domains": [{"host": "%s", "format": "maven", "type": "custom", "domain_type": "native_api"}]}' ;;
+          "credential-helper generic")
+            printf '{"version": 1, "username": "%s", "password": "%%s"}\\n' "$(cat '%s')" ;;
+          *)
+            exit 1 ;;
+        esac
+        """
+            .formatted(listedHost, USERNAME, passwordFile));
+    Files.setPosixFilePermissions(script, PosixFilePermissions.fromString("rwx------"));
+    return script;
+  }
+
   /**
    * Writes a script that fails like the CLI behind a TLS-intercepting proxy until {@code
    * REQUESTS_CA_BUNDLE} is set, and then answers like {@link #write}.
