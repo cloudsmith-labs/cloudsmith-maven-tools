@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/cloudsmith-labs/cloudsmith-maven-tools/compare/v0.2.1...v0.2.2) (2026-11-25)
+
+
+### Bug Fixes
+
+* renew the CLI credential during long Gradle builds ([#16](https://github.com/cloudsmith-labs/cloudsmith-maven-tools/issues/16)) ([8f9ea08](https://github.com/cloudsmith-labs/cloudsmith-maven-tools/commit/8f9ea08b5c6114539282d68de9e6b38564328fe4))
+
 ## [0.2.1](https://github.com/cloudsmith-labs/cloudsmith-maven-tools/compare/v0.2.0...v0.2.1) (2026-11-06)
 
 
