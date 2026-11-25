@@ -5,19 +5,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.cloudsmith.testing.FakeCloudsmithCli;
 import io.cloudsmith.testing.HttpsRepository;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
+import org.gradle.util.GradleVersion;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -221,6 +229,318 @@ class CloudsmithPluginIT {
     assertTrue(first.getOutput().contains("Resolved [it-library-1.0.jar]"), first.getOutput());
     assertTrue(second.getOutput().contains("Reusing configuration cache"), second.getOutput());
     assertTrue(second.getOutput().contains("Resolved [it-library-1.0.jar]"), second.getOutput());
+  }
+
+  @Test
+  void sendsTheRenewedCredentialToARepositoryDeclaredInSettings() throws Exception {
+    writeSettings(applyPlugin() + dependencyRepository(""));
+
+    BuildResult result = resolveWhileTheCliRenewsTheCredential("", "configurations.after");
+
+    assertTrue(
+        result.getOutput().contains("Resolved [it-other-1.0.jar] after renewal"),
+        result.getOutput());
+  }
+
+  @Test
+  void sendsTheRenewedCredentialToAProjectRepository() throws Exception {
+    writeSettings("");
+
+    BuildResult result =
+        resolveWhileTheCliRenewsTheCredential(
+            applyPlugin() + "repositories { maven { url = '" + repository.url() + "' } }\n",
+            "configurations.after");
+
+    assertTrue(
+        result.getOutput().contains("Resolved [it-other-1.0.jar] after renewal"),
+        result.getOutput());
+  }
+
+  @Test
+  void sendsTheRenewedCredentialForADetachedConfiguration() throws Exception {
+    assumeTrue(
+        gradleUnderTestIsAtLeast("8.1"),
+        "Gradle before 8.1 has no build listener that works with the configuration cache");
+    writeSettings(applyPlugin() + dependencyRepository(""));
+
+    BuildResult result =
+        resolveWhileTheCliRenewsTheCredential(
+            "",
+            "configurations.detachedConfiguration(dependencies.create('com.example:it-other:1.0'))");
+
+    assertTrue(
+        result.getOutput().contains("Resolved [it-other-1.0.jar] after renewal"),
+        result.getOutput());
+  }
+
+  @Test
+  void sendsTheRenewedCredentialForADetachedConfigurationOfASubproject() throws Exception {
+    assumeTrue(
+        gradleUnderTestIsAtLeast("8.1"),
+        "Gradle before 8.1 has no build listener that works with the configuration cache");
+    writeSettings(applyPlugin() + "include 'sub'\n");
+    Path subproject = Files.createDirectories(project.resolve("sub"));
+
+    BuildResult result =
+        resolveWhileTheCliRenewsTheCredential(
+            subproject,
+            "repositories { maven { url = '" + repository.url() + "' } }\n",
+            "configurations.detachedConfiguration(dependencies.create('com.example:it-other:1.0'))");
+
+    assertTrue(
+        result.getOutput().contains("Resolved [it-other-1.0.jar] after renewal"),
+        result.getOutput());
+  }
+
+  @Test
+  void keepsACredentialThatTheBuildSetsLater() throws Exception {
+    writeSettings(
+        applyPlugin()
+            + dependencyRepository("name = 'cloudsmith'")
+            + """
+            dependencyResolutionManagement.repositories.named('cloudsmith') {
+              credentials { username = 'explicit-user'; password = 'explicit-secret' }
+            }
+            """);
+
+    BuildResult result = buildWhileTheCliRenewsTheCredential(project, "", "configurations.after");
+
+    assertEquals(
+        Set.of(basic("explicit-user", "explicit-secret")),
+        Set.copyOf(repository.receivedAuthorizations()),
+        result.getOutput());
+  }
+
+  /**
+   * Gradle discards the internal descriptor of a repository each time a plugin reads or sets its
+   * credentials. Another worker of a parallel build can read the descriptor at that moment.
+   */
+  @Test
+  void leavesARepositoryUnchangedWhenItRenewsTheCredential() throws Exception {
+    Path passwordFile = workDirectory.resolve("password");
+    Files.writeString(passwordFile, "first-secret");
+    Path cli =
+        FakeCloudsmithCli.writeRenewing(
+            Files.createDirectories(workDirectory.resolve("renewing")),
+            HttpsRepository.HOST,
+            passwordFile);
+    writeSettings("");
+    writeBuild(
+        applyPlugin()
+            + "repositories { maven { url = '"
+            + repository.url()
+            + "' } }\n"
+            + """
+            configurations { fetched }
+            dependencies { fetched 'com.example:it-library:1.0' }
+            tasks.register('resolve') {
+              def files = configurations.fetched
+              def repository = repositories.first()
+              def passwordFile = file('%s')
+              doLast {
+                def descriptor = repository.descriptor
+                passwordFile.text = 'renewed-secret'
+                println "Resolved ${files.files*.name}"
+                println "Repository unchanged: ${repository.descriptor.is(descriptor)}"
+              }
+            }
+            """
+                .formatted(passwordFile.toString().replace("\\", "/")));
+
+    BuildResult result =
+        runner(
+                Map.of(
+                    "CLOUDSMITH_CLI_PATH", cli.toString(), "CLOUDSMITH_MAVEN_TOOLS_TTL", "0.001"),
+                HttpsRepository.HOST,
+                "resolve")
+            .build();
+
+    assertTrue(result.getOutput().contains("Repository unchanged: true"), result.getOutput());
+    assertTrue(
+        repository
+            .receivedAuthorizations()
+            .contains(basic(FakeCloudsmithCli.USERNAME, "renewed-secret")),
+        result.getOutput());
+  }
+
+  @Test
+  void asksTheCliAgainWhenTheBuildRefreshesDependencies() throws Exception {
+    writeSettings(applyPlugin() + dependencyRepository(""));
+    writeBuild(RESOLVE_BUILD);
+
+    runner("dl.cloudsmith.io", "resolve").buildAndFail();
+    BuildResult refreshed =
+        runner(HttpsRepository.HOST, "resolve", "--refresh-dependencies").build();
+
+    assertTrue(
+        refreshed.getOutput().contains("Resolved [it-library-1.0.jar]"), refreshed.getOutput());
+  }
+
+  @Test
+  void sendsNoRenewedCredentialToARepositoryWhoseUrlChanged() throws Exception {
+    Path passwordFile = workDirectory.resolve("password");
+    Files.writeString(passwordFile, "first-secret");
+    Path cli =
+        FakeCloudsmithCli.writeRenewing(
+            Files.createDirectories(workDirectory.resolve("renewing")),
+            HttpsRepository.HOST,
+            passwordFile);
+    writeSettings("");
+    writeBuild(
+        applyPlugin()
+            + "repositories { maven { url = '"
+            + repository.url()
+            + "' } }\n"
+            + """
+            repositories.first().url = 'https://other.example/repository'
+            configurations { unused }
+            tasks.register('resolve') {
+              def files = configurations.unused
+              def repository = repositories.first()
+              def passwordFile = file('%s')
+              doLast {
+                passwordFile.text = 'renewed-secret'
+                files.files
+                println "Password: ${repository.credentials.password}"
+              }
+            }
+            """
+                .formatted(passwordFile.toString().replace("\\", "/")));
+
+    BuildResult result =
+        runner(
+                Map.of(
+                    "CLOUDSMITH_CLI_PATH", cli.toString(), "CLOUDSMITH_MAVEN_TOOLS_TTL", "0.001"),
+                HttpsRepository.HOST,
+                "resolve")
+            .build();
+
+    assertTrue(result.getOutput().contains("Password: first-secret"), result.getOutput());
+  }
+
+  /**
+   * Gradle records each value source that a build reads at configuration time, and reads each of
+   * them again before it reuses the configuration cache.
+   */
+  @Test
+  void addsNoBuildInputForACheckThatRenewsNothing() throws Exception {
+    writeSettings(applyPlugin() + dependencyRepository(""));
+
+    long few = configurationCacheFingerprintSize(2);
+    long many = configurationCacheFingerprintSize(300);
+
+    assertTrue(few > 0, "no configuration cache fingerprint found");
+    assertTrue(many - few < 2_000, "fingerprint grew from " + few + " to " + many + " bytes");
+  }
+
+  private long configurationCacheFingerprintSize(int resolutions) throws IOException {
+    writeBuild(
+        """
+        (1..%d).each { index ->
+          def fetched = configurations.create("fetched$index")
+          dependencies.add(fetched.name, 'com.example:it-library:1.0')
+          fetched.files
+        }
+        tasks.register('resolve')
+        """
+            .formatted(resolutions));
+    Path cache = project.resolve(".gradle/configuration-cache");
+    if (Files.exists(cache)) {
+      try (Stream<Path> stored = Files.walk(cache)) {
+        stored.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+      }
+    }
+    runner(HttpsRepository.HOST, "resolve", "--configuration-cache").build();
+    try (Stream<Path> stored = Files.walk(cache)) {
+      return stored
+          .filter(file -> file.getFileName().toString().contains("fingerprint"))
+          .mapToLong(file -> file.toFile().length())
+          .sum();
+    }
+  }
+
+  /**
+   * Resolves one configuration, renews the CLI credential, and resolves {@code afterRenewal}. The
+   * repository accepts only the current credential, like Cloudsmith after a token expires.
+   */
+  private BuildResult resolveWhileTheCliRenewsTheCredential(String buildPrefix, String afterRenewal)
+      throws Exception {
+    return resolveWhileTheCliRenewsTheCredential(project, buildPrefix, afterRenewal);
+  }
+
+  private BuildResult resolveWhileTheCliRenewsTheCredential(
+      Path buildDirectory, String buildPrefix, String afterRenewal) throws Exception {
+    Path passwordFile = workDirectory.resolve("password");
+    repository.acceptOnly(() -> basic(FakeCloudsmithCli.USERNAME, readPassword(passwordFile)));
+
+    BuildResult result =
+        buildWhileTheCliRenewsTheCredential(buildDirectory, buildPrefix, afterRenewal);
+
+    assertTrue(
+        repository
+            .receivedAuthorizations()
+            .contains(basic(FakeCloudsmithCli.USERNAME, "renewed-secret")),
+        result.getOutput());
+    return result;
+  }
+
+  private BuildResult buildWhileTheCliRenewsTheCredential(
+      Path buildDirectory, String buildPrefix, String afterRenewal) throws Exception {
+    String other = "com/example/it-other/1.0/it-other-1.0";
+    repository.addFile(other + ".pom", LIBRARY_POM.replace("it-library", "it-other"));
+    repository.addFile(other + ".jar", "not a real jar");
+    Path passwordFile = workDirectory.resolve("password");
+    Files.writeString(passwordFile, "first-secret");
+    Path cli =
+        FakeCloudsmithCli.writeRenewing(
+            Files.createDirectories(workDirectory.resolve("renewing")),
+            HttpsRepository.HOST,
+            passwordFile);
+    Files.writeString(
+        buildDirectory.resolve("build.gradle"),
+        buildPrefix
+            + """
+            configurations { before; after }
+            dependencies {
+              before 'com.example:it-library:1.0'
+              after 'com.example:it-other:1.0'
+            }
+            tasks.register('resolveAcrossRenewal') {
+              def beforeFiles = configurations.before
+              def afterFiles = %s
+              def passwordFile = file('%s')
+              doLast {
+                println "Resolved ${beforeFiles.files*.name}"
+                passwordFile.text = 'renewed-secret'
+                println "Resolved ${afterFiles.files*.name} after renewal"
+              }
+            }
+            """
+                .formatted(afterRenewal, passwordFile.toString().replace("\\", "/")));
+
+    return runner(
+            Map.of("CLOUDSMITH_CLI_PATH", cli.toString(), "CLOUDSMITH_MAVEN_TOOLS_TTL", "0.001"),
+            HttpsRepository.HOST,
+            "resolveAcrossRenewal")
+        .build();
+  }
+
+  private boolean gradleUnderTestIsAtLeast(String version) throws IOException {
+    String output = runner(HttpsRepository.HOST, "--version").build().getOutput();
+    Matcher gradle = Pattern.compile("(?m)^Gradle (\\S+)").matcher(output);
+    assertTrue(gradle.find(), output);
+    return GradleVersion.version(gradle.group(1))
+            .getBaseVersion()
+            .compareTo(GradleVersion.version(version))
+        >= 0;
+  }
+
+  private static String readPassword(Path passwordFile) {
+    try {
+      return Files.readString(passwordFile).strip();
+    } catch (IOException unreadable) {
+      throw new UncheckedIOException(unreadable);
+    }
   }
 
   private String applyPlugin() {

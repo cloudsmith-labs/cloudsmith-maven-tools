@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 
@@ -29,9 +30,9 @@ import javax.net.ssl.SSLContext;
  * A Maven repository on a local HTTPS server that demands Basic auth.
  *
  * <p>A request without an {@code Authorization} header gets 401 in the realms that Cloudsmith uses.
- * The server accepts any credential and records it, so a test asserts which credential the build
- * sent. It serves the files that a test adds, with a SHA-1 checksum for each, and stores each file
- * that a build uploads with PUT.
+ * The server accepts any credential, unless a test calls {@link #acceptOnly}, and records it, so a
+ * test asserts which credential the build sent. It serves the files that a test adds, with a SHA-1
+ * checksum for each, and stores each file that a build uploads with PUT.
  *
  * <p>The trust store holds the certificate authorities of the JDK too, so a build that trusts it
  * can also reach Maven Central.
@@ -43,6 +44,7 @@ public final class HttpsRepository implements AutoCloseable {
 
   private final Map<String, byte[]> files = new ConcurrentHashMap<>();
   private final List<String> receivedAuthorizations = new CopyOnWriteArrayList<>();
+  private volatile Supplier<String> acceptedAuthorization;
   private final HttpsServer server;
   private final Path trustStore;
 
@@ -90,6 +92,11 @@ public final class HttpsRepository implements AutoCloseable {
     return receivedAuthorizations;
   }
 
+  /** Rejects with 401, like an expired token, each request whose header is not the current one. */
+  public void acceptOnly(Supplier<String> authorization) {
+    acceptedAuthorization = authorization;
+  }
+
   @Override
   public void close() {
     server.stop(0);
@@ -121,6 +128,11 @@ public final class HttpsRepository implements AutoCloseable {
       return;
     }
     receivedAuthorizations.add(authorization);
+    Supplier<String> accepted = acceptedAuthorization;
+    if (accepted != null && !accepted.get().equals(authorization)) {
+      exchange.sendResponseHeaders(401, -1);
+      return;
+    }
 
     String path = exchange.getRequestURI().getPath();
     String method = exchange.getRequestMethod();

@@ -22,8 +22,8 @@ repository in the build:
 
 If the CLI is missing, not authenticated, or fails, the build runs as if the
 extension or plugin were not installed, and logs a warning with the error of
-the CLI. The CLI's answers are kept in memory for five minutes, so a build runs
-the CLI only a few times.
+the CLI. The CLI's answers are kept in memory, so a build runs the CLI only a
+few times.
 
 ## Prerequisites
 
@@ -203,6 +203,10 @@ The plugin works with the configuration cache. Before Gradle reuses a cached
 configuration, it asks the CLI again, so a rotated token makes Gradle configure
 the build again.
 
+The Gradle daemon keeps the answers of the CLI between builds. To discard them,
+run a build with `--refresh-dependencies`, or stop the daemon with
+`gradle --stop`.
+
 ## Use with sbt
 
 sbt 1.10 or later, or sbt 2.0 or later, is required.
@@ -250,7 +254,8 @@ A custom domain belongs to one workspace, so its URLs leave out the workspace.
 |----------|---------|-------------|
 | `CLOUDSMITH_CLI_PATH` | Not set | Path to the `cloudsmith` executable. When set, `PATH` is not searched. |
 | `CLOUDSMITH_MAVEN_TOOLS_TIMEOUT` | `30` | Time limit, in seconds, for each CLI command. |
-| `CLOUDSMITH_MAVEN_TOOLS_TTL` | `300` | How long, in seconds, an answer from the CLI is reused. Failed answers are reused too, so a slow or broken CLI does not stall each download. |
+| `CLOUDSMITH_MAVEN_TOOLS_TTL` | `300` | How long, in seconds, a credential from the CLI is reused. Failed answers are reused too, so a slow or broken CLI does not stall each download. |
+| `CLOUDSMITH_MAVEN_TOOLS_HOSTS_TTL` | `86400` | How long, in seconds, the list of Cloudsmith hosts from the CLI is reused. An empty list is not reused. |
 
 ## Troubleshooting
 
